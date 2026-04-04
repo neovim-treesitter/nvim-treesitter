@@ -1,14 +1,11 @@
-vim.opt.runtimepath:append(os.getenv('PLENARY'))
-vim.opt.runtimepath:append('.')
-vim.cmd.runtime({ 'plugin/plenary.vim', bang = true })
+vim.o.rtp = os.getenv('PLENTEST') .. ',.,' .. vim.o.rtp
+vim.o.rtp = vim.fn.stdpath('data') .. '/site,' .. vim.o.rtp
 vim.cmd.runtime({ 'plugin/query_predicates.lua', bang = true })
 vim.cmd.runtime({ 'plugin/filetypes.lua', bang = true })
 
 vim.filetype.add({
   extension = {
     conf = 'hocon',
-    ncl = 'nickel',
-    tig = 'tiger',
     w = 'wing',
   },
 })

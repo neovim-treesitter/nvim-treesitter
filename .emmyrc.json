@@ -1,0 +1,31 @@
+{
+  "$schema": "https://raw.githubusercontent.com/EmmyLuaLs/emmylua-analyzer-rust/refs/heads/main/crates/emmylua_code_analysis/resources/schema.json",
+  "format": {
+    "externalTool": {
+      "program": "stylua",
+      "args": [
+        "-",
+        "--stdin-filepath",
+        "${file}"
+      ]
+    }
+  },
+  "diagnostics": {
+    "disable": [
+      "unnecessary-if",
+      "incomplete-signature-doc"
+    ],
+    "enables": [
+      "iter-variable-reassign",
+      "non-literal-expressions-in-assert",
+      "missing-global-doc"
+    ]
+  },
+  "codeAction": {
+    "insertSpace": true
+  },
+  "strict": {
+    "typeCall": true,
+    "arrayIndex": true
+  }
+}

@@ -85,6 +85,7 @@ local function join(max_jobs, tasks)
     end
 
     for i = 1, max_jobs do
+      assert(tasks[i])
       tasks[i]():await(cb)
     end
   end)
@@ -97,7 +98,31 @@ end
 local function system(cmd, opts)
   local cwd = opts and opts.cwd or uv.cwd()
   log.trace('running job: (cwd=%s) %s', cwd, table.concat(cmd, ' '))
-  local r = a.await(3, vim.system, cmd, opts) --[[@as vim.SystemCompleted]]
+
+  ---vim.system throws an error when uv.spawn fails, in particular if cmd or cwd
+  ---does not exist. This kills the coroutine, so the async'ed call simply hangs.
+  ---Instead, we pass a wrapper that catches errors and propagates them as a proper
+  ---`SystemObj`.
+  ---TODO(clason): remove when https://github.com/neovim/neovim/issues/38257 is resolved.
+  ---@param _cmd string[]
+  ---@param _opts vim.SystemOpts
+  ---@param on_exit fun(result: vim.SystemCompleted)
+  ---@return vim.SystemObj?
+  local function system_wrap(_cmd, _opts, on_exit)
+    local ok, ret = pcall(vim.system, _cmd, _opts, on_exit)
+    if not ok then
+      on_exit({
+        code = 125,
+        signal = 0,
+        stdout = '',
+        stderr = ret --[[@as string]],
+      })
+      return nil
+    end
+    return ret --[[@as vim.SystemObj]]
+  end
+
+  local r = a.await(3, system_wrap, cmd, opts) --[[@as vim.SystemCompleted]]
   a.schedule()
   if r.stdout and r.stdout ~= '' then
     log.trace('stdout -> %s', r.stdout)
@@ -131,7 +156,8 @@ end
 ---@param ... string
 ---@return string
 function M.get_package_path(...)
-  return fs.joinpath(fn.fnamemodify(debug.getinfo(1, 'S').source:sub(2), ':p:h:h:h'), ...)
+  local info = assert(debug.getinfo(1, 'S'))
+  return fs.joinpath(fn.fnamemodify(info.source:sub(2), ':p:h:h:h'), ...)
 end
 
 ---@param lang string
@@ -197,17 +223,13 @@ end
 ---@param output_dir string
 ---@return string? err
 local function do_download(logger, url, project_name, cache_dir, revision, output_dir)
-  local is_gitlab = url:find('gitlab.com', 1, true)
-
   local tmp = output_dir .. '-tmp'
 
   rmpath(tmp)
   a.schedule()
 
   url = url:gsub('.git$', '')
-  local target = is_gitlab
-      and string.format('%s/-/archive/%s/%s-%s.tar.gz', url, revision, project_name, revision)
-    or string.format('%s/archive/%s.tar.gz', url, revision)
+  local target = string.format('%s/archive/%s.tar.gz', url, revision)
 
   local tarball_path = fs.joinpath(cache_dir, project_name .. '.tar.gz')
 
@@ -218,6 +240,8 @@ local function do_download(logger, url, project_name, cache_dir, revision, outpu
       '--silent',
       '--fail',
       '--show-error',
+      '--retry',
+      '7',
       '-L', -- follow redirects
       target,
       '--output',
@@ -300,11 +324,9 @@ end
 local function do_install(logger, compile_location, target_location)
   logger:info(string.format('Installing parser'))
 
-  if uv.os_uname().sysname == 'Windows_NT' then -- why can't you just be normal?!
-    local tempfile = target_location .. tostring(uv.hrtime())
-    uv_rename(target_location, tempfile) -- parser may be in use: rename...
-    uv_unlink(tempfile) -- ...and mark for garbage collection
-  end
+  local tempfile = target_location .. tostring(uv.hrtime())
+  uv_rename(target_location, tempfile) -- parser may be in use: rename...
+  uv_unlink(tempfile) -- ...and mark for garbage collection
 
   local err = uv_copyfile(compile_location, target_location)
   a.schedule()
@@ -467,8 +489,8 @@ end
 
 --- Reload the parser table and user modifications in case of update
 local function reload_parsers()
-  ---@diagnostic disable-next-line:no-unknown
   package.loaded['nvim-treesitter.parsers'] = nil
+  ---@diagnostic disable-next-line:duplicate-require
   parsers = require('nvim-treesitter.parsers')
   vim.api.nvim_exec_autocmds('User', { pattern = 'TSUpdate' })
 end
@@ -487,7 +509,7 @@ end
 local function install(languages, options)
   options = options or {}
 
-  local cache_dir = fs.normalize(fn.stdpath('cache'))
+  local cache_dir = fs.normalize(fn.stdpath('cache') --[[@as string]])
   if not uv.fs_stat(cache_dir) then
     fn.mkdir(cache_dir, 'p')
   end

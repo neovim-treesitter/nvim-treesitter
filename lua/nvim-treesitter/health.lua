@@ -7,7 +7,7 @@ local health = vim.health
 local M = {}
 
 local NVIM_TREESITTER_MINIMUM_ABI = 13
-local TREE_SITTER_MIN_VER = { 0, 25, 0 }
+local TREE_SITTER_MIN_VER = { 0, 26, 1 }
 
 ---@param name string
 ---@return table?
@@ -24,8 +24,8 @@ local function install_health()
   health.start('Requirements')
 
   do -- nvim check
-    if vim.fn.has('nvim-0.11') ~= 1 then
-      health.error('Nvim-treesitter requires Neovim 0.11.0 or later.')
+    if vim.fn.has('nvim-0.12') ~= 1 then
+      health.error('Nvim-treesitter requires Neovim 0.12.0 or later.')
     end
 
     if vim.treesitter.language_version >= NVIM_TREESITTER_MINIMUM_ABI then
@@ -96,9 +96,7 @@ local function install_health()
     health.error('is not writable.')
   end
   if
-    vim.iter(vim.api.nvim_list_runtime_paths()):any(function(p)
-      return installdir == vim.fs.normalize(p) .. '/'
-    end)
+    vim.list_contains(vim.tbl_map(vim.fs.normalize, vim.api.nvim_list_runtime_paths()), installdir)
   then
     health.ok('is in runtimepath.')
   else
@@ -148,7 +146,7 @@ function M.check()
     end
     health.info(vim.fn.trim(out, ' ', 2))
   end
-  health.start('  Legend: H[ighlights], L[ocals], F[olds], I[ndents], In[J]ections')
+  health.start('  Legend: [H]ighlights, [L]ocals, [F]olds, [I]ndents, In[J]ections')
 
   if #error_collection > 0 then
     health.start('The following errors have been detected in query files:')
