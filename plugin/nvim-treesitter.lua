@@ -44,10 +44,14 @@ end
 -- With bang    : force reinstall
 
 api.nvim_create_user_command('TSInstall', function(args)
-  require('nvim-treesitter.install').install(args.fargs, {
-    force   = args.bang,
-    summary = true,
-  })
+  local fargs = args.fargs
+  local bang  = args.bang
+  vim.schedule(function()
+    require('nvim-treesitter.install').install(fargs, {
+      force   = bang,
+      summary = true,
+    })
+  end)
 end, {
   nargs    = '+',
   bang     = true,
@@ -61,12 +65,14 @@ end, {
 -- With bang    : force re-fetch version info before updating
 
 api.nvim_create_user_command('TSUpdate', function(args)
-  -- no args → update all installed
   local langs = #args.fargs > 0 and args.fargs or nil
-  require('nvim-treesitter.install').update(langs, {
-    force   = args.bang,
-    summary = true,
-  })
+  local bang  = args.bang
+  vim.schedule(function()
+    require('nvim-treesitter.install').update(langs, {
+      force   = bang,
+      summary = true,
+    })
+  end)
 end, {
   nargs    = '*',
   bang     = true,
@@ -78,7 +84,10 @@ end, {
 -- ── :TSUninstall {lang...} ────────────────────────────────────────────────────
 
 api.nvim_create_user_command('TSUninstall', function(args)
-  require('nvim-treesitter.install').uninstall(args.fargs, { summary = true })
+  local fargs = args.fargs
+  vim.schedule(function()
+    require('nvim-treesitter.install').uninstall(fargs, { summary = true })
+  end)
 end, {
   nargs    = '+',
   bar      = true,
