@@ -42,14 +42,22 @@ if not install then
 else
   local semver = is_semver(install.revision)
   manifest = {
-    lang        = lang,
-    url         = install.url,
-    semver      = semver,
+    lang              = lang,
+    url               = install.url,
+    semver            = semver,
     -- min_version: set to current revision if it's a semver tag,
     -- otherwise nil (maintainer must set manually after first semver release).
-    min_version = semver and install.revision or vim.NIL,
-    max_version = vim.NIL,
-    location    = install.location or vim.NIL,
+    min_version       = semver and install.revision or vim.NIL,
+    max_version       = vim.NIL,
+    location          = install.location or vim.NIL,
+    -- generate: set true when the parser repo does not ship a pre-built
+    -- src/parser.c and requires `tree-sitter generate` before compiling.
+    -- generate_from_json: true = use src/grammar.json (faster, no JS runtime),
+    --                     false = use grammar.js (requires a JS runtime).
+    -- Omit both fields (nil) when generate is not needed.
+    generate          = install.generate or vim.NIL,
+    generate_from_json = install.generate_from_json ~= nil
+                          and install.generate_from_json or vim.NIL,
   }
 end
 

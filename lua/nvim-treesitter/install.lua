@@ -411,22 +411,6 @@ local function install_one(lang, entry, versions, install_dir, cache_dir, opts)
   local source  = entry.source
   local stype   = source.type  -- "self_contained" | "external_queries" | "queries_only" | "local"
 
-  -- ── compatibility check ──────────────────────────────────────────────────
-  local parser_manifest = entry.parser_manifest or {}
-  if parser_manifest.max_version and versions.latest_parser then
-    if semver_gt(versions.latest_parser, parser_manifest.max_version) then
-      vim.notify(
-        string.format(
-          '[nvim-treesitter] %s: latest parser %s exceeds max_version %s — skipping parser update',
-          lang, versions.latest_parser, parser_manifest.max_version
-        ),
-        vim.log.levels.WARN
-      )
-      -- Still allow queries update below; clear parser intent
-      versions = vim.tbl_extend('force', versions, { skip_parser = true })
-    end
-  end
-
   local need_parser  = (stype == 'self_contained' or stype == 'external_queries' or stype == 'local')
                          and not versions.skip_parser
   local need_queries = (stype == 'self_contained' or stype == 'external_queries'
@@ -436,6 +420,60 @@ local function install_one(lang, entry, versions, install_dir, cache_dir, opts)
   -- queries_path is set (we must not delete it until after queries are copied).
   local remote_project_dir ---@type string?
 
+  -- ── download queries repo first (external_queries / queries_only) ─────────
+  -- For external_queries the queries tarball is downloaded before the parser
+  -- is compiled so that parser.json (which lives in the queries repo root) is
+  -- available on disk when we need to decide whether to run `tree-sitter
+  -- generate`.  We read it here and use it throughout the rest of install_one.
+  local parser_manifest = entry.parser_manifest or {}  ---@type table
+  local queries_project_dir ---@type string?  -- kept alive for copy step below
+
+  if need_queries and (stype == 'external_queries' or stype == 'queries_only') then
+    local queries_ref  = versions.latest_queries or 'main'
+    local queries_url  = source.queries_url or source.url
+    local project_name = 'tree-sitter-queries-' .. lang
+    local project_dir  = fs.joinpath(cache_dir, project_name)
+
+    rmpath(project_dir)
+    a.schedule()
+
+    local turl = tarball_url(queries_url, queries_ref)
+    if turl then
+      local err = do_download_tarball(logger, turl, project_name, cache_dir, project_dir)
+      if err then return err end
+    else
+      local err = do_git_clone(logger, queries_url, queries_ref, project_dir)
+      if err then return err end
+    end
+
+    -- Read parser.json from the queries repo root to get build metadata.
+    local manifest_path = fs.joinpath(project_dir, 'parser.json')
+    if uv.fs_stat(manifest_path) then
+      local ok, data = pcall(vim.fn.json_decode, table.concat(vim.fn.readfile(manifest_path), '\n'))
+      if ok and type(data) == 'table' then
+        -- Merge with any entry-level manifest (entry-level wins for version bounds).
+        parser_manifest = vim.tbl_extend('keep', entry.parser_manifest or {}, data)
+      end
+    end
+
+    queries_project_dir = project_dir
+  end
+
+  -- ── compatibility check (needs parser_manifest populated above) ───────────
+  if parser_manifest.max_version and versions.latest_parser then
+    if semver_gt(versions.latest_parser, parser_manifest.max_version) then
+      vim.notify(
+        string.format(
+          '[nvim-treesitter] %s: latest parser %s exceeds max_version %s — skipping parser update',
+          lang, versions.latest_parser, parser_manifest.max_version
+        ),
+        vim.log.levels.WARN
+      )
+      versions = vim.tbl_extend('force', versions, { skip_parser = true })
+      need_parser = false
+    end
+  end
+
   -- ── download + build parser ───────────────────────────────────────────────
   if need_parser then
     local project_name  = 'tree-sitter-' .. lang
@@ -444,20 +482,15 @@ local function install_one(lang, entry, versions, install_dir, cache_dir, opts)
     local parser_url    = source.parser_url or source.url
     local project_dir   = fs.joinpath(cache_dir, project_name)
 
-    rmpath(project_dir)
-    a.schedule()
-
     if source.type == 'local' then
       -- local path: compile in place
-      -- source.path holds the directory (native registry field)
       local compile_loc = fs.normalize(source.path or '')
-      -- self_contained uses source.location; external_queries uses source.parser_location
       local location = source.parser_location or source.location
       if location then
         compile_loc = fs.joinpath(compile_loc, location)
       end
-      if source.generate or source.generate_from_json ~= nil then
-        local err = do_generate(logger, source, compile_loc)
+      if parser_manifest.generate or parser_manifest.generate_from_json ~= nil then
+        local err = do_generate(logger, parser_manifest, compile_loc)
         if err then return err end
       end
       local err = do_compile(logger, compile_loc)
@@ -468,48 +501,55 @@ local function install_one(lang, entry, versions, install_dir, cache_dir, opts)
       if err then return err end
     else
       -- remote: tarball or git clone.
-      -- Deduplicate concurrent downloads of the same URL (e.g. markdown monorepo).
-      local dl_key = parser_url .. '@' .. parser_ref
+      -- When multiple langs share the same parser_url (e.g. markdown monorepo),
+      -- download once into a URL-keyed shared dir and let each lang compile
+      -- its own parser_location subdirectory from it.
+      local dl_key     = parser_url .. '@' .. parser_ref
+      -- Shared dir is keyed by URL+ref so it is neutral across langs.
+      local shared_dir = fs.joinpath(cache_dir, 'shared-' .. vim.fn.sha256(dl_key):sub(1, 12))
+
       if downloading[dl_key] == false then
-        -- Another coroutine is downloading this URL — wait for it.
+        -- Another coroutine is downloading — wait for it.
         local ok = vim.wait(INSTALL_TIMEOUT, function() return downloading[dl_key] ~= false end)
         if not ok or not downloading[dl_key] then
           return logger:error('Timed out waiting for shared download of %s', parser_url)
         end
-        -- Reuse the project_dir the other coroutine produced.
-        project_dir = downloading[dl_key] --[[@as string]]
       elseif not downloading[dl_key] then
-        -- We are the first — claim the lock and download.
+        -- First coroutine: claim lock, download into shared_dir.
         downloading[dl_key] = false
+        rmpath(shared_dir)
+        a.schedule()
+        -- Also clean up the lang-specific dir from any previous run.
+        rmpath(project_dir)
+        a.schedule()
         local turl = tarball_url(parser_url, parser_ref)
         if turl then
-          local err = do_download_tarball(logger, turl, project_name, cache_dir, project_dir)
+          local err = do_download_tarball(logger, turl, 'shared-' .. vim.fn.sha256(dl_key):sub(1, 12), cache_dir, shared_dir)
           if err then
-            downloading[dl_key] = nil  -- release so waiters don't hang
+            downloading[dl_key] = nil
             return err
           end
         else
-          local err = do_git_clone(logger, parser_url, parser_ref, project_dir)
+          local err = do_git_clone(logger, parser_url, parser_ref, shared_dir)
           if err then
             downloading[dl_key] = nil
             return err
           end
         end
-        downloading[dl_key] = project_dir  -- signal completion
+        downloading[dl_key] = shared_dir  -- signal completion with shared dir path
       end
-      -- else: downloading[dl_key] is already a string — another lang already
-      -- finished downloading this URL; reuse its project_dir directly.
+      -- Use the shared dir (either we downloaded it or another coroutine did).
+      project_dir = downloading[dl_key] --[[@as string]]
 
       local compile_loc = project_dir
-      -- self_contained uses source.location; external_queries uses source.parser_location
       local location = source.parser_location or source.location
       if location then
         compile_loc = fs.joinpath(compile_loc, location)
       end
 
-      -- generate parser.c from grammar.js / grammar.json if the source requires it
-      if source.generate or source.generate_from_json ~= nil then
-        local err = do_generate(logger, source, compile_loc)
+      -- generate parser.c from grammar.js / grammar.json if parser.json says so
+      if parser_manifest.generate or parser_manifest.generate_from_json ~= nil then
+        local err = do_generate(logger, parser_manifest, compile_loc)
         if err then return err end
       end
 
@@ -521,41 +561,20 @@ local function install_one(lang, entry, versions, install_dir, cache_dir, opts)
       err = do_install_parser(logger, parser_lib, install_loc)
       if err then return err end
 
-      -- Keep project_dir alive if queries_path is set; we need it for queries.
-      -- For shared downloads (monorepo) never delete — the other lang may still need it.
-      local is_shared = downloading[dl_key] ~= nil and downloading[dl_key] ~= false
-                        and downloading[dl_key] == project_dir
+      -- Shared downloads are never deleted here — other langs may still need them.
       if source.queries_path then
         remote_project_dir = project_dir
-      elseif not is_shared then
-        rmpath(project_dir)
-        a.schedule()
       end
     end
   end
 
-  -- ── download + install queries ────────────────────────────────────────────
+  -- ── install queries ───────────────────────────────────────────────────────
   if need_queries then
     local query_dir = fs.joinpath(config.get_install_dir('queries'), lang)
 
     if stype == 'queries_only' or stype == 'external_queries' then
-      -- Download queries tarball from queries_url (external_queries) or url (queries_only)
-      local queries_ref = versions.latest_queries or 'main'
-      local queries_url = source.queries_url or source.url
-      local project_name = 'tree-sitter-queries-' .. lang
-      local project_dir  = fs.joinpath(cache_dir, project_name)
-
-      rmpath(project_dir)
-      a.schedule()
-
-      local turl = tarball_url(queries_url, queries_ref)
-      if turl then
-        local err = do_download_tarball(logger, turl, project_name, cache_dir, project_dir)
-        if err then return err end
-      else
-        local err = do_git_clone(logger, queries_url, queries_ref, project_dir)
-        if err then return err end
-      end
+      -- queries_project_dir was downloaded above; extract the .scm files from it.
+      local project_dir = queries_project_dir --[[@as string]]
 
       -- queries live in <repo>/queries/<lang>/ (or just <repo>/queries/)
       local query_src = fs.joinpath(project_dir, 'queries', lang)
@@ -570,14 +589,10 @@ local function install_one(lang, entry, versions, install_dir, cache_dir, opts)
       a.schedule()
 
     elseif source.queries_path then
-      -- self_contained with queries_path: copy .scm files from the parser
-      -- repo's <queries_path>/ subdir (already downloaded into remote_project_dir,
-      -- or use the local path when source.type == 'local').
       local base_dir ---@type string
       if source.type == 'local' then
         base_dir = fs.normalize(source.path or '')
       else
-        -- remote_project_dir was retained above for exactly this case
         base_dir = remote_project_dir or fs.joinpath(cache_dir, 'tree-sitter-' .. lang)
       end
       local query_src = fs.joinpath(base_dir, source.queries_path)
@@ -585,7 +600,6 @@ local function install_one(lang, entry, versions, install_dir, cache_dir, opts)
       local err = do_copy_queries(logger, query_src, query_dir)
       if err then return err end
 
-      -- Clean up remote project dir now that queries are copied
       if remote_project_dir then
         rmpath(remote_project_dir)
         a.schedule()
@@ -593,8 +607,7 @@ local function install_one(lang, entry, versions, install_dir, cache_dir, opts)
       end
 
     else
-      -- self_contained: queries ship with parser repo (already downloaded above)
-      -- Try bundled runtime queries first, then fallback to symlink
+      -- self_contained: queries ship with parser repo
       local queries_src = fs.joinpath(
         require('nvim-treesitter.install').get_package_path('runtime', 'queries', lang)
       )

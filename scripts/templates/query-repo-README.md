@@ -51,7 +51,18 @@ parser version.
   "location": "",
 
   // Set true when the grammar is pre-built and no compile step is needed.
-  "queries_only": false
+  "queries_only": false,
+
+  // Set true when the parser repo does not ship a pre-generated src/parser.c
+  // and requires running `tree-sitter generate` before compilation.
+  // Omit (or set false) when src/parser.c is already present in the repo.
+  "generate": false,
+
+  // Controls the input to `tree-sitter generate` when generate is true:
+  //   true  — use src/grammar.json  (faster; no JS runtime required)
+  //   false — use grammar.js        (requires a JS runtime)
+  // Omit when generate is false.
+  "generate_from_json": false
 }
 ```
 
