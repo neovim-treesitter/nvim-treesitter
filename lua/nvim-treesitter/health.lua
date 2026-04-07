@@ -1,4 +1,4 @@
-local parsers = require('nvim-treesitter.parsers')
+local registry = require('nvim-treesitter.registry')
 local config = require('nvim-treesitter.config')
 local util = require('nvim-treesitter.util')
 local tsq = vim.treesitter.query
@@ -24,8 +24,8 @@ local function install_health()
   health.start('Requirements')
 
   do -- nvim check
-    if vim.fn.has('nvim-0.12') ~= 1 then
-      health.error('Nvim-treesitter requires Neovim 0.12.0 or later.')
+    if vim.fn.has('nvim-0.10') ~= 1 then
+      health.error('Nvim-treesitter requires Neovim 0.10.0 or later.')
     end
 
     if vim.treesitter.language_version >= NVIM_TREESITTER_MINIMUM_ABI then
@@ -126,9 +126,9 @@ function M.check()
   local languages = config.get_installed()
   table.sort(languages)
   for _, lang in ipairs(languages) do
-    local parser = parsers[lang]
+    local entry = registry.loaded and registry.loaded[lang]
     local out = lang .. string.rep(' ', 22 - #lang)
-    if parser and parser.install_info then
+    if entry and entry.source then
       for _, query_group in pairs(M.bundled_queries) do
         local status, err = query_status(lang, query_group)
         out = out .. status .. ' '
@@ -137,8 +137,8 @@ function M.check()
         end
       end
     end
-    if parser and parser.requires then
-      for _, p in pairs(parser.requires) do
+    if entry and entry.requires then
+      for _, p in pairs(entry.requires) do
         if not vim.list_contains(languages, p) then
           table.insert(error_collection, { lang, 'queries', 'dependency ' .. p .. ' missing' })
         end

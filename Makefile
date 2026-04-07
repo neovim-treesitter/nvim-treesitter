@@ -86,12 +86,19 @@ $(HLASSERT):
 	rm -rf $(HLASSERT_TARBALL)
 
 PLENTEST := $(DEPDIR)/plentest.nvim
+PLENARY := $(DEPDIR)/plenary.nvim
 
 .PHONY: plentest
 plentest: $(PLENTEST)
 
 $(PLENTEST):
-	git clone --filter=blob:none https://github.com/nvim-treesitter/plentest.nvim $(PLENTEST)
+	git clone --filter=blob:none https://github.com/neovim-treesitter/plentest.nvim $(PLENTEST)
+
+.PHONY: plenary
+plenary: $(PLENARY)
+
+$(PLENARY):
+	git clone --filter=blob:none https://github.com/nvim-lua/plenary.nvim $(PLENARY)
 
 # actual test targets
 
@@ -126,8 +133,8 @@ docs: $(NVIM)
 	$(NVIM_BIN) -l scripts/update-readme.lua
 
 .PHONY: tests
-tests: $(NVIM) $(HLASSERT) $(PLENTEST)
-	HLASSERT=$(HLASSERT)/highlight-assertions PLENTEST=$(PLENTEST) \
+tests: $(NVIM) $(HLASSERT) $(PLENTEST) $(PLENARY)
+	HLASSERT=$(HLASSERT)/highlight-assertions PLENTEST=$(PLENTEST) PLENARY=$(PLENARY) \
 		$(NVIM_BIN) --headless --clean -u scripts/minimal_init.lua \
 		-c "lua require('plentest').test_directory('tests/$(TESTS)', { minimal_init = './scripts/minimal_init.lua' })"
 

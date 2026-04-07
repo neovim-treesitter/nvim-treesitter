@@ -1,13 +1,13 @@
 local M = {}
 
-M.tiers = { 'stable', 'unstable', 'unmaintained', 'unsupported' }
-
 ---@class TSConfig
 ---@field install_dir string
+---@field local_parsers? table<string, {source: table, filetypes?: string[], requires?: string[]}>
 
 ---@type TSConfig
 local config = {
-  install_dir = vim.fs.joinpath(vim.fn.stdpath('data') --[[@as string]], 'site'),
+  install_dir    = vim.fs.joinpath(vim.fn.stdpath('data') --[[@as string]], 'site'),
+  local_parsers  = {},
 }
 
 ---Setup call for users to override configuration configurations.
@@ -39,6 +39,12 @@ function M.get_install_dir(dir_name)
   return dir
 end
 
+--- Return the local_parsers table from setup().
+---@return table<string, table>
+function M.get_local_parsers()
+  return config.local_parsers or {}
+end
+
 ---@param type 'queries'|'parsers'?
 ---@return string[]
 function M.get_installed(type)
@@ -56,47 +62,26 @@ function M.get_installed(type)
   return vim.tbl_keys(installed)
 end
 
--- Get a list of all available parsers
----@param tier integer? only get parsers of specified tier
+--- Get a list of all available languages.
+--- Source of truth is the registry (registry.loaded) plus any local_parsers overrides.
 ---@return string[]
-function M.get_available(tier)
-  vim.api.nvim_exec_autocmds('User', { pattern = 'TSUpdate' })
-  local parsers = require('nvim-treesitter.parsers')
-  --- @type string[]
-  local languages = vim.tbl_keys(parsers)
-  table.sort(languages)
-  if tier then
-    languages = vim.tbl_filter(
-      --- @param p string
-      function(p)
-        return parsers[p] ~= nil and parsers[p].tier == tier
-      end,
-      languages
-    )
-  end
-  return languages
-end
+function M.get_available()
+  local registry = require('nvim-treesitter.registry')
+  local languages = registry.loaded and vim.tbl_keys(registry.loaded) or {}
 
-local function expand_tiers(list)
-  for i, tier in ipairs(M.tiers) do
-    if vim.list_contains(list, tier) then
-      list = vim.tbl_filter(
-        --- @param l string
-        function(l)
-          return l ~= tier
-        end,
-        list
-      )
-      vim.list_extend(list, M.get_available(i))
+  for lang in pairs(M.get_local_parsers()) do
+    if not vim.list_contains(languages, lang) then
+      languages[#languages + 1] = lang
     end
   end
 
-  return list
+  table.sort(languages)
+  return languages
 end
 
 ---Normalize languages
 ---@param languages? string[]|string
----@param skip? { missing: boolean?, unsupported: boolean?, installed: boolean?, dependencies: boolean? }
+---@param skip? { missing: boolean?, installed: boolean? }
 ---@return string[]
 function M.norm_languages(languages, skip)
   if not languages then
@@ -111,8 +96,6 @@ function M.norm_languages(languages, skip)
     end
     languages = M.get_available()
   end
-
-  languages = expand_tiers(languages)
 
   if skip and skip.installed then
     local installed = M.get_installed()
@@ -134,38 +117,6 @@ function M.norm_languages(languages, skip)
       end,
       languages
     )
-  end
-
-  local parsers = require('nvim-treesitter.parsers')
-  languages = vim.tbl_filter(
-    --- @param v string
-    function(v)
-      if parsers[v] ~= nil then
-        return true
-      else
-        require('nvim-treesitter.log').warn('skipping unsupported language: ' .. v)
-        return false
-      end
-    end,
-    languages
-  )
-
-  if skip and skip.unsupported then
-    languages = vim.tbl_filter(
-      --- @param v string
-      function(v)
-        return not (parsers[v] and parsers[v].tier and parsers[v].tier == 4)
-      end,
-      languages
-    )
-  end
-
-  if not (skip and skip.dependencies) then
-    for _, lang in pairs(languages) do
-      if parsers[lang] and parsers[lang].requires then
-        vim.list_extend(languages, parsers[lang].requires)
-      end
-    end
   end
 
   return vim.list.unique(languages)

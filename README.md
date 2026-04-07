@@ -2,186 +2,365 @@
   <img src="https://github.com/nvim-treesitter/nvim-treesitter/assets/2361214/0513b223-c902-4f12-92ee-8ac4d8d6f41f" alt="nvim-treesitter">
 </h1>
 
-The `nvim-treesitter` plugin provides
-1. functions for installing, updating, and removing [**tree-sitter parsers**](SUPPORTED_LANGUAGES.md);
-2. a collection of **queries** for enabling tree-sitter features built into Neovim for these languages;
-3. a staging ground for [treesitter-based features](#Supported-features) considered for upstreaming to Neovim.
+`nvim-treesitter` installs tree-sitter parsers and the Neovim query files that
+go with them (highlights, injections, folds, indents, locals). Parsers and
+queries are discovered from a [community registry][registry] rather than
+pinned inside this repo, so each language's queries are maintained by the
+people who use that language.
 
-For details on these and how to help improving them, see [CONTRIBUTING.md](./CONTRIBUTING.md).
+> [!CAUTION]
+> This is a full, incompatible rewrite. Treat it as a new plugin and set it up
+> from scratch following the instructions below. If you need the previous
+> version, use the [`master` branch][master] (locked, no new features).
 
->[!CAUTION]
-> This is a full, incompatible, rewrite: Treat this as a different plugin you need to set up from scratch following the instructions below. If you can't or don't want to update, specify the [`master` branch](https://github.com/nvim-treesitter/nvim-treesitter/blob/master/README.md) (which is locked but will remain available for backward compatibility with Nvim 0.11).
+[registry]: https://github.com/neovim-treesitter/treesitter-parser-registry
+[master]: https://github.com/nvim-treesitter/nvim-treesitter/blob/master/README.md
 
-# Quickstart
+---
 
 ## Requirements
 
-- Neovim 0.12.0 or later (nightly)
-- `tar` and `curl` in your path
-- [`tree-sitter-cli`](https://github.com/tree-sitter/tree-sitter/blob/master/crates/cli/README.md) (0.26.1 or later, installed via your package manager, **not npm**)
-- a C compiler in your path (see <https://docs.rs/cc/latest/cc/#compile-time-requirements>)
+| Requirement | Version |
+|-------------|---------|
+| Neovim | 0.10.0 or later |
+| [nvim-lua/plenary.nvim][plenary] | latest |
+| [`tree-sitter` CLI][ts-cli] | 0.26.1 or later — install via your system package manager, **not npm** |
+| C compiler | see [cc requirements][cc] |
 
->[!IMPORTANT]
-> The current **support policy** for Neovim is
-> * the _latest_ [stable release](https://github.com/neovim/neovim/releases/tag/stable),
-> * the _latest_ [nightly prerelease](https://github.com/neovim/neovim/releases/tag/nightly).
-> Other versions may work but are neither tested nor considered for fixes.
+[plenary]: https://github.com/nvim-lua/plenary.nvim
+[ts-cli]: https://github.com/tree-sitter/tree-sitter/blob/master/crates/cli/README.md
+[cc]: https://docs.rs/cc/latest/cc/#compile-time-requirements
+
+> [!IMPORTANT]
+> Neovim support tracks the latest **stable release** and the latest
+> **nightly prerelease** only. Other versions may work but are not tested.
+
+---
 
 ## Installation
 
-You can install `nvim-treesitter` with your favorite package manager (or using the native `package` feature of vim, see `:h packages`).
-
-This plugin is only guaranteed to work with specific versions of language parsers** (as specified in the `parser.lua` table). **When upgrading the plugin, you must make sure that all installed parsers are updated to the latest version** via `:TSUpdate`.
-It is strongly recommended to automate this; e.g., using the following spec with [lazy.nvim](https://github.com/folke/lazy.nvim):
+### lazy.nvim
 
 ```lua
 {
   'nvim-treesitter/nvim-treesitter',
+  dependencies = { 'nvim-lua/plenary.nvim' },
   lazy = false,
-  build = ':TSUpdate'
+  build = ':TSUpdate',
 }
 ```
 
->[!IMPORTANT]
+> [!IMPORTANT]
 > This plugin does not support lazy-loading.
 
-## Setup
+### Other plugin managers
 
-`nvim-treesitter` can be configured by calling `setup`. **You do not need to call `setup` for `nvim-treesitter` to work using default values.**
+Ensure `nvim-lua/plenary.nvim` is installed as a dependency and add `:TSUpdate`
+as a post-install / post-update build step.
+
+---
+
+## Quick start
+
+You do not need to call `setup` unless you want to change the install
+directory.
 
 ```lua
+-- optional — only needed to override the default install_dir
 require('nvim-treesitter').setup {
-  -- Directory to install parsers and queries to (prepended to `runtimepath` to have priority)
-  install_dir = vim.fn.stdpath('data') .. '/site'
+  -- parsers and queries are installed here (prepended to runtimepath)
+  install_dir = vim.fn.stdpath('data') .. '/site',
 }
 ```
 
-Parsers and queries can then be installed with
+Install parsers and their queries:
 
 ```lua
-require('nvim-treesitter').install { 'rust', 'javascript', 'zig' }
+require('nvim-treesitter').install { 'rust', 'python', 'typescript' }
 ```
 
-(This is a no-op if the parsers are already installed.) Note that this function runs asynchronously; for synchronous installation in a script context ("bootstrapping"), you need to `wait()` for it to finish:
-
-```lua
-require('nvim-treesitter').install({ 'rust', 'javascript', 'zig' }):wait(300000) -- wait max. 5 minutes
-```
-
-Check [`:h nvim-treesitter-commands`](doc/nvim-treesitter.txt) for a list of all available commands.
-
-# Supported languages
-
-For `nvim-treesitter` to support a specific feature for a specific language requires both a parser for that language and an appropriate language-specific query file for that feature.
-
-A list of the currently supported languages can be found [on this page](SUPPORTED_LANGUAGES.md). If you wish to add a new language or improve the queries for an existing one, please see our [contributing guide](CONTRIBUTING.md).
-
-# Supported features
-
-`nvim-treesitter` provides queries for the following features. **These are not automatically enabled.**
-
-## Highlighting
-
-Treesitter highlighting is provided by Neovim, see `:h treesitter-highlight`. To enable it for a filetype, put `vim.treesitter.start()` in a `ftplugin/<filetype>.lua` in your config directory, or place the following in your `init.lua`:
+Then enable features per language. Features are **not** enabled automatically.
 
 ```lua
 vim.api.nvim_create_autocmd('FileType', {
-  pattern = { '<filetype>' },
-  callback = function() vim.treesitter.start() end,
+  pattern = { 'rust', 'python', 'typescript' },
+  callback = function()
+    vim.treesitter.start()                                    -- highlighting
+    vim.wo.foldexpr = 'v:lua.vim.treesitter.foldexpr()'     -- folds
+    vim.wo.foldmethod = 'expr'
+    vim.bo.indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()" -- indentation
+  end,
 })
 ```
 
-## Folds
+---
 
-Treesitter-based folding is provided by Neovim. To enable it, put the following in your `ftplugin` or `FileType` autocommand:
+## Commands
 
-```lua
-vim.wo[0][0].foldexpr = 'v:lua.vim.treesitter.foldexpr()'
-vim.wo[0][0].foldmethod = 'expr'
+| Command | Description |
+|---------|-------------|
+| `:TSInstall {lang...}` | Install parsers and queries. No-op if already installed. |
+| `:TSInstall! {lang...}` | Force reinstall (useful after upgrading the plugin). |
+| `:TSUpdate [{lang...}]` | Update installed parsers and queries to latest release. Omit languages to update all. |
+| `:TSUpdate! [{lang...}]` | Update, bypassing the local version cache. |
+| `:TSUninstall {lang...}` | Remove parsers and queries for the specified languages. |
+| `:TSStatus` | Open a status buffer showing installed version vs. latest for each language. |
+| `:TSLog` | Show log from the last install/update/uninstall run. |
+
+---
+
+## Supported languages and features
+
+Languages are discovered from the [neovim-treesitter registry][registry]. Any
+language in the registry can be installed; there are no tiers.
+
+### What is installed
+
+For each language, `nvim-treesitter` installs:
+
+- **Parser** — a compiled `.so` fetched from the upstream grammar repository
+- **Queries** — `.scm` files from the community query repo
+  (`nvim-treesitter-queries-<lang>` under the `neovim-treesitter` GitHub org)
+
+### Supported query types
+
+| Query file | Feature | How to enable |
+|------------|---------|---------------|
+| `highlights.scm` | Syntax highlighting | `vim.treesitter.start()` |
+| `injections.scm` | Multi-language documents | automatic after `start()` |
+| `folds.scm` | Treesitter-based folds | `vim.wo.foldmethod = 'expr'` |
+| `indents.scm` | Treesitter-based indentation | `vim.bo.indentexpr = ...` |
+| `locals.scm` | Scope/definition lookup | used by other plugins |
+
+---
+
+## Local overrides
+
+### Override queries for a language
+
+Query files in your Neovim config's `runtimepath` take precedence over
+installed queries. Place a file at:
+
+```
+~/.config/nvim/queries/<lang>/<type>.scm
 ```
 
-## Indentation
+To **extend** (not replace) the installed queries, add this as the first line:
 
-Treesitter-based indentation is provided by this plugin but considered **experimental**. To enable it, put the following in your `ftplugin` or `FileType` autocommand:
-
-```lua
-vim.bo.indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
+```scheme
+; extends
 ```
 
-(Note the specific quotes used.)
+To **replace** them entirely, omit that line.
 
-## Injections
+See `:h treesitter-query-modelines` for details.
 
-Injections are used for multi-language documents, see `:h treesitter-language-injections`. No setup is needed.
+### Use a local parser checkout
 
-## Locals
+Point `install_dir` at a directory you manage, then place your compiled parser
+and queries there directly:
 
-These queries can be used to look up definitions and references to identifiers in a given scope. They are not used in this plugin and are provided for (limited) backward compatibility.
-
-# Advanced setup
-
-## Adding custom languages
-
-If you have a parser that is not on the list of supported languages (either as a repository on Github or in a local directory), you can add it manually for use by `nvim-treesitter` as follows:
-
-1. Add the following snippet in a `User TSUpdate` autocommand:
+```
+<install_dir>/
+  parser/
+    <lang>.so          ← compiled parser binary
+  queries/
+    <lang>/
+      highlights.scm   ← query files
+```
 
 ```lua
-vim.api.nvim_create_autocmd('User', { pattern = 'TSUpdate',
-callback = function()
-  require('nvim-treesitter.parsers').zimbu = {
-    install_info = {
-      url = 'https://github.com/zimbulang/tree-sitter-zimbu',
-      revision = <sha>, -- commit hash for revision to check out; HEAD if missing
-      -- optional entries:
-      branch = 'develop', -- only needed if different from default branch
-      location = 'parser', -- only needed if the parser is in subdirectory of a "monorepo"
-      generate = true, -- only needed if repo does not contain pre-generated `src/parser.c`
-      generate_from_json = false, -- only needed if repo does not contain `src/grammar.json` either
-      queries = 'queries/neovim', -- also install queries from given directory
+require('nvim-treesitter').setup {
+  install_dir = '/path/to/my/parsers',
+}
+```
+
+Neovim will use parsers and queries from `install_dir` as long as it is on
+`runtimepath`, which `setup` ensures. You can still use `:TSInstall` for other
+languages alongside your local overrides.
+
+---
+
+## Local parsers
+
+To install a parser that is not in the registry, or to use your own fork of a
+parser, add it to `local_parsers` in `setup()`. Each value is a **registry
+entry** — the same shape used in `registry.json` — with a `source` field:
+
+```lua
+-- Local directory checkout (no network fetch)
+require('nvim-treesitter').setup {
+  local_parsers = {
+    zsh = {
+      source = {
+        type         = 'local',
+        path         = '~/Development/tree-sitter-zsh',
+        queries_path = 'nvim-queries/zsh',  -- subdir containing .scm files
+      },
+      filetypes = { 'zsh' },
     },
-  }
-end})
-```
+  },
+}
 
-Alternatively, if you have a local checkout, you can instead use
-
-```lua
-    install_info = {
-      path = '~/parsers/tree-sitter-zimbu',
-      -- optional entries
-      location = 'parser',
-      generate = true,
-      generate_from_json = false,
-      queries = 'queries/neovim', -- symlink queries from given directory
+-- Remote URL not in the registry (self_contained = ships its own queries)
+require('nvim-treesitter').setup {
+  local_parsers = {
+    zsh = {
+      source = {
+        type         = 'self_contained',
+        url          = 'https://github.com/georgeharker/tree-sitter-zsh',
+        semver       = false,
+        queries_path = 'nvim-queries/zsh',
+      },
+      filetypes = { 'zsh' },
     },
+  },
+}
 ```
-This will always use the state of the directory as-is (i.e., `branch` and `revision` will be ignored).
 
-2. If the parser name differs from the filetype(s) used by Neovim, you need to register the parser via
+Then: `:TSInstall zsh`
+
+If Neovim does not detect your language's filetype by default, register the
+parser name manually:
 
 ```lua
-vim.treesitter.language.register('zimbu', { 'zu' })
+vim.treesitter.language.register('mylang', { 'ml' })
 ```
 
-If Neovim does not detect your language's filetype by default, you can use [Neovim's `vim.filetype.add()`](<https://neovim.io/doc/user/lua.html#vim.filetype.add()>) to add a custom detection rule.
+---
 
-3. Start `nvim` and `:TSInstall zimbu`.
+## Contributing
 
->[!IMPORTANT]
-> If the parser requires an external scanner, this must be written in C.
+### Fixing or improving queries for an existing language
 
-### Modifying parsers
+Each language's queries live in their own repository under the
+[neovim-treesitter][org] GitHub org:
 
-You can use the same approach for overriding parser information. E.g., if you always want to generate the `lua` parser from grammar, add
+```
+https://github.com/neovim-treesitter/nvim-treesitter-queries-<lang>
+```
+
+Open a pull request there. CI will validate your changes automatically. See
+the [contributing guide][contributing] for the full workflow.
+
+[org]: https://github.com/neovim-treesitter
+[contributing]: https://github.com/neovim-treesitter/treesitter-parser-registry/blob/main/docs/contributing.md
+
+### Adding a new language
+
+1. Open a pull request adding an entry to
+   [`registry.json`][registry-json] in the registry repo
+2. Create the `nvim-treesitter-queries-<lang>` repository following the
+   [query repo setup guide][setup-guide]
+
+[registry-json]: https://github.com/neovim-treesitter/treesitter-parser-registry/blob/main/registry.json
+[setup-guide]: https://github.com/neovim-treesitter/treesitter-parser-registry/blob/main/docs/contributing.md#creating-a-query-repo
+
+### Claiming maintainership of a language repo
+
+Add yourself to the `CODEOWNERS` file in the language's query repo and open
+a PR. See the [governance guide][governance] for details.
+
+[governance]: https://github.com/neovim-treesitter/treesitter-parser-registry/blob/main/docs/contributing.md#governance-and-ownership
+
+---
+
+## Migrating from the previous version
+
+The previous version of `nvim-treesitter` pinned specific parser revisions
+inside the plugin and used a tiered system (stable/unstable/unmaintained).
+The new version:
+
+- Discovers languages and their latest versions from the community registry
+- Fetches queries from per-language repos maintained by language communities
+- Has no tiers — if a language is in the registry it can be installed
+- No longer uses `parsers.lua` — per-language config via `parsers.<lang> = {}`
+  is not supported in this version
+- Removes `:TSInstallFromGrammar` — parser generation from grammar source is
+  not part of the installer's scope
+
+### Plugin manager build step
+
+Replace any reference to tiers in your build step:
 
 ```lua
-vim.api.nvim_create_autocmd('User', { pattern = 'TSUpdate',
-callback = function()
-  require('nvim-treesitter.parsers').lua.install_info.generate = true
-end})
+-- before (no longer valid)
+build = ':TSUpdate stable'
+
+-- after
+build = ':TSUpdate'
 ```
 
-## Adding queries
+### Custom parser entries
 
-Queries can be placed anywhere in your `runtimepath` under `queries/<language>`, with earlier directories taking precedence unless the queries are marked with `; extends`; see [`:h treesitter-query-modelines`](https://neovim.io/doc/user/treesitter.html#treesitter-query-modeline).
+The old pattern using a `User TSUpdate` autocmd no longer works:
+
+```lua
+-- OLD — no longer supported
+vim.api.nvim_create_autocmd('User', {
+  pattern = 'TSUpdate',
+  callback = function()
+    require('nvim-treesitter.parsers').zsh = {
+      install_info = {
+        url = 'https://github.com/georgeharker/tree-sitter-zsh',
+        queries = 'nvim-queries/zsh',
+      },
+      tier = 1,
+    }
+  end,
+})
+```
+
+Use `local_parsers` in `setup()` instead:
+
+```lua
+-- NEW — remote URL (self_contained: ships its own queries)
+require('nvim-treesitter').setup {
+  local_parsers = {
+    zsh = {
+      source = {
+        type         = 'self_contained',
+        url          = 'https://github.com/georgeharker/tree-sitter-zsh',
+        queries_path = 'nvim-queries/zsh',
+      },
+      filetypes = { 'zsh' },
+    },
+  },
+}
+```
+
+For a local directory checkout instead of a remote URL:
+
+```lua
+require('nvim-treesitter').setup {
+  local_parsers = {
+    zsh = {
+      source = {
+        type         = 'local',
+        path         = '~/Development/tree-sitter-zsh',
+        queries_path = 'nvim-queries/zsh',
+      },
+      filetypes = { 'zsh' },
+    },
+  },
+}
+```
+
+Then install as normal: `:TSInstall zsh`.
+
+| Old field | New field | Notes |
+|-----------|-----------|-------|
+| `url = '...'` | `source.url = '...'` | moved under `source` |
+| `path = '...'` | `source.path = '...'` | moved under `source`, implies `type = 'local'` |
+| `location = '...'` | `source.location = '...'` | monorepo subdir, moved under `source` |
+| `queries = 'subdir'` | `source.queries_path = 'subdir'` | renamed and moved under `source` |
+| `semver = false` | `source.semver = false` | moved under `source` |
+| `revision` / `min_version` | _(removed)_ | version managed by the registry |
+| `tier` | _(removed)_ | no tiers in new system |
+| `generate` / `generate_from_json` | _(removed)_ | parser generation not supported |
+
+---
+
+## Health check
+
+Run `:checkhealth nvim-treesitter` to verify the installation.

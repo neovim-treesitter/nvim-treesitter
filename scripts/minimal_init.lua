@@ -1,4 +1,13 @@
-vim.o.rtp = os.getenv('PLENTEST') .. ',.,' .. vim.o.rtp
+local function prepend_rtp(path)
+  if path and path ~= '' then
+    vim.opt.rtp:prepend(path)
+  end
+end
+
+-- Test dependencies passed as env vars by the Makefile
+prepend_rtp(os.getenv('PLENARY'))
+prepend_rtp(os.getenv('PLENTEST'))
+
 vim.o.rtp = vim.fn.stdpath('data') .. '/site,' .. vim.o.rtp
 vim.cmd.runtime({ 'plugin/query_predicates.lua', bang = true })
 vim.cmd.runtime({ 'plugin/filetypes.lua', bang = true })

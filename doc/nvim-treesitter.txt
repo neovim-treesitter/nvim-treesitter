@@ -22,10 +22,10 @@ QUICK START                                         *nvim-treesitter-quickstart*
 
 To configure `nvim-treesitter`, put this in your `init.lua` file:
 >lua
-  require'nvim-treesitter'.setup {
-    -- A directory to install the parsers and queries to.
-    -- Defaults to the `stdpath('data')/site` dir.
-    install_dir = "/some/path/to/store/parsers",
+  require('nvim-treesitter').setup {
+    -- Directory to install parsers and queries to (prepended to runtimepath).
+    -- Defaults to stdpath('data')/site
+    install_dir = vim.fn.stdpath('data') .. '/site',
   }
 
 NOTE: You do not need to call `setup` to use this plugin with the default
@@ -56,31 +56,31 @@ COMMANDS                                              *nvim-treesitter-commands*
 
 :TSInstall {language}                                               *:TSInstall*
 
-Install one or more treesitter parsers. {language} can be one or multiple
-parsers or tiers (`stable`, `unstable`, or `all` (not recommended)). This is a
-no-op if the parser(s) are already installed. Installation is performed
-asynchronously. Use *:TSInstall!* to force installation even if a parser is
-already installed.
+Install one or more treesitter parsers. {language} is one or more language
+names. This is a no-op if the parser(s) are already installed. Installation
+is performed asynchronously. Use *:TSInstall!* to force installation even if
+a parser is already installed.
 
-:TSInstallFromGrammar {language}                         *:TSInstallFromGrammar*
-
-Like |:TSInstall| but also regenerates the `parser.c` from the original
-grammar. Useful for languages where the provided `parser.c` is outdated (e.g.,
-uses a no longer supported ABI).
-
-:TSUpdate [{language}]                                              *:TSUpdate*
+:TSUpdate [{language}]                                               *:TSUpdate*
 
 Update parsers to the `revision` specified in the manifest if this is newer
 than the installed version. If {language} is specified, update the
-corresponding parser or tier; otherwise update all installed parsers. This is
-a no-op if all (specified) parsers are up to date.
+corresponding parser; otherwise update all installed parsers. This is a no-op
+if all (specified) parsers are up to date.
 
 Note: It is recommended to add this command as a build step in your plugin
 manager.
 
 :TSUninstall {language}                                           *:TSUninstall*
 
-Deletes the parser for one or more {language}, or all parsers with `all`.
+Deletes the parser and queries for one or more {language} names.
+
+:TSStatus                                                           *:TSStatus*
+
+Opens a scratch buffer showing the per-language status of all languages known
+to `nvim-treesitter`. For each language the buffer lists the installed version
+versus the latest available version for both the parser and the queries,
+making it easy to spot outdated or missing components at a glance.
 
 :TSLog                                                                  *:TSLog*
 
@@ -102,6 +102,16 @@ setup({opts})                                          *nvim-treesitter.setup()*
               • {install_dir} (`string?`, default `stdpath('data')/site/`)
                 directory to install parsers and queries to. Note: will be
                 prepended to |runtimepath|.
+              • {local_parsers} (`table<string,table>?`, default `{}`)
+                Table of registry entries for languages not in the upstream
+                registry, or local overrides. Each key is a language name;
+                each value is a registry entry with a `source` field:
+                  • `{ source = { type = "local", path = "...", queries_path = "..." } }`
+                    — use a local directory checkout, no network fetch.
+                  • `{ source = { type = "self_contained", url = "...", semver = false, queries_path = "..." } }`
+                    — fetch from a URL and install queries from a subdir.
+                See the registry schema for all source types and fields:
+                https://github.com/neovim-treesitter/treesitter-parser-registry
 
 install({languages} [, {opts}])                      *nvim-treesitter.install()*
 
@@ -116,16 +126,12 @@ install({languages} [, {opts}])                      *nvim-treesitter.install()*
                                   :wait(300000) -- max. 5 minutes
 <
     Parameters: ~
-    • {languages}  `(string[]|string)` (List of) languages or tiers (`stable`,
-                   `unstable`) to install.
+    • {languages}  `(string[]|string)` (List of) language names to install.
     • {opts}       `(table?)` Optional parameters:
                    • {force} (`boolean?`, default `false`) force installation
                      of already installed parsers
-                   • {generate} (`boolean?`, default `false`) generate
-                     `parser.c` from `grammar.json` or `grammar.js` before
-                     compiling.
-                   • {max_jobs} (`integer?`) limit parallel tasks (useful in
-                     combination with {generate} on memory-limited systems).
+                   • {max_jobs} (`integer?`) limit the number of parallel
+                     tasks.
                    • {summary} (`boolean?`, default `false`) print summary of
                      successful and total operations for multiple languages.
 
@@ -134,8 +140,7 @@ uninstall({languages} [, {opts}])                  *nvim-treesitter.uninstall()*
     Remove the parser and queries for the specified language(s).
 
     Parameters: ~
-    • {languages}  `(string[]|string)` (List of) languages or tiers (`stable`,
-                   `unstable`) to update.
+    • {languages}  `(string[]|string)` (List of) language names to uninstall.
     • {opts}       `(table?)` Optional parameters:
                    • {summary} (`boolean?`, default `false`) print summary of
                      successful and total operations for multiple languages.
@@ -151,11 +156,11 @@ update([{languages}, {opts}])                         *nvim-treesitter.update()*
         require('nvim-treesitter').update():wait(300000) -- max. 5 minutes
 <
     Parameters: ~
-    • {languages}  `(string[]|string)?` (List of) languages or tiers to update
+    • {languages}  `(string[]|string)?` (List of) language names to update
                    (default: all installed).
     • {opts}       `(table?)` Optional parameters:
-                   • {max_jobs} (`integer?`) limit parallel tasks (useful in
-                     combination with {generate} on memory-limited systems).
+                   • {max_jobs} (`integer?`) limit the number of parallel
+                     tasks.
                    • {summary} (`boolean?`, default `false`) print summary of
                      successful and total operations for multiple languages.
 
@@ -164,13 +169,9 @@ indentexpr()                                      *nvim-treesitter.indentexpr()*
     Used to enable treesitter indentation for a language via >lua
         vim.bo.indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
 <
-get_available([{tier}])                        *nvim-treesitter.get_available()*
+get_available()                                *nvim-treesitter.get_available()*
 
-    Return list of languages available for installation.
-
-    Parameters: ~
-    • {tier}  `(integer?)` Only return languages of specified {tier} (`1`:
-              stable, `2`: unstable, `3`: unmaintained, `4`: unsupported)
+    Return list of all language names available for installation.
 
 get_installed([{type}])                        *nvim-treesitter.get_installed()*
 
@@ -183,7 +184,59 @@ get_installed([{type}])                        *nvim-treesitter.get_installed()*
         vim.api.nvim_get_runtime_file('parser/*', true)
 <
     Parameters: ~
-    • {type}  `('queries'|parsers'?)` If specified, only show languages with
+    • {type}  `('queries'|'parsers'?)` If specified, only show languages with
               installed queries or parsers, respectively.
 
+==============================================================================
+CONTRIBUTING                                     *nvim-treesitter-contributing*
+
+Contributions to parsers, queries, and the registry are managed across
+several repositories under the `neovim-treesitter` GitHub organisation.
+
+FIXING QUERIES ~
+
+Each language's queries live in a dedicated repository named
+`nvim-treesitter-queries-<lang>` under the `neovim-treesitter` organisation
+(e.g., `neovim-treesitter/nvim-treesitter-queries-lua`). To fix or improve
+queries for a language, open a pull request against the corresponding
+repository.
+
+ADDING A LANGUAGE ~
+
+1. Open a pull request adding an entry to `registry.json` in the
+   `neovim-treesitter/treesitter-parser-registry` repository. The entry
+   describes the parser source, revision, and associated query repository.
+2. Create the query repository (`nvim-treesitter-queries-<lang>`) under the
+   `neovim-treesitter` organisation and populate it with the query files
+   (`highlights.scm`, `injections.scm`, etc.).
+
+CLAIMING MAINTAINERSHIP ~
+
+To become a maintainer of a language's query repository, add yourself to the
+`CODEOWNERS` file in that repository. Maintainers are expected to review and
+merge query pull requests in a timely manner.
+
+==============================================================================
+LOCAL OVERRIDES                                 *nvim-treesitter-local-overrides*
+
+OVERRIDE QUERIES ~
+
+Place a file at `queries/<lang>/<type>.scm` anywhere on your 'runtimepath'
+(e.g., in your Neovim config directory) to override the default queries for
+that language. To extend rather than replace the bundled queries, add the
+following directive at the top of your file: >scm
+    ; extends
+<
+This causes Neovim to merge your file with the upstream queries instead of
+replacing them entirely.
+
+USE A LOCAL PARSER ~
+
+Set `install_dir` in |nvim-treesitter.setup()| to a local directory of your
+choice. Then place the compiled parser shared library (`.so` / `.dll` /
+`.dylib`) inside a `parser/` subdirectory and the query files inside
+`queries/<lang>/` subdirectories of that directory. `nvim-treesitter` will
+use these files in preference to any downloaded ones.
+
+==============================================================================
 vim:tw=78:ts=8:expandtab:noet:ft=help:norl:

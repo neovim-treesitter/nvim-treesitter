@@ -24,8 +24,23 @@ function M.update(...)
   return require('nvim-treesitter.install').update(...)
 end
 
+function M.status(...)
+  return require('nvim-treesitter.install').status(...)
+end
+
 function M.indentexpr()
   return require('nvim-treesitter.indent').get_indent(vim.v.lnum)
+end
+
+--- Backwards-compatibility shim for user configs that call
+--- require("nvim-treesitter").get_parser_configs().
+--- Returns the registry's loaded table when available, otherwise {}.
+function M.get_parser_configs()
+  local registry = require('nvim-treesitter.registry')
+  if registry.loaded and next(registry.loaded) then
+    return registry.loaded
+  end
+  return {}
 end
 
 return M

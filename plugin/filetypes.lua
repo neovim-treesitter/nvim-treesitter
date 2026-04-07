@@ -1,3 +1,6 @@
+-- Static filetype→lang overrides: languages whose treesitter lang name differs
+-- from their Neovim filetype name.  These are registered immediately so that
+-- built-in filetype detection works even before the registry has loaded.
 local filetypes = {
   angular = { 'htmlangular' },
   bash = { 'sh' },
@@ -67,3 +70,14 @@ local filetypes = {
 for lang, ft in pairs(filetypes) do
   vim.treesitter.language.register(lang, ft)
 end
+
+-- Additionally register any filetype mappings declared in registry entries.
+-- Registry loading is asynchronous; mappings that duplicate the static table
+-- above are harmless (register is idempotent).
+require('nvim-treesitter.registry').load(function(reg)
+  for lang, entry in pairs(reg) do
+    if entry.filetypes and #entry.filetypes > 0 then
+      vim.treesitter.language.register(lang, entry.filetypes)
+    end
+  end
+end)

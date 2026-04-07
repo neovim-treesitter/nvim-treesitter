@@ -1,18 +1,23 @@
 # Contributing to `nvim-treesitter`
 
-The main parts of `nvim-treesitter` are
-* a curated list of [parsers](#Parsers);
-* a collection of [queries](#Queries).
+`nvim-treesitter` is the installer plugin for tree-sitter parsers and queries in Neovim. The actual parser and query content is managed externally:
 
-Before describing these in detail, some general advice:
-* Some basic knowledge of how tree-sitter works is assumed; we recommend reading
-  - the [upstream documentation](https://tree-sitter.github.io/tree-sitter/);
-  - [Neovim's documentation](https://neovim.io/doc/user/treesitter.html#treesitter).
-* There are dedicated Matrix channels for questions and general help:
-  - [#nvim-treesitter](https://matrix.to/#/#nvim-treesitter:matrix.org) for questions specific to Neovim's implementation and the queries here;
-  - [#tree-sitter](https://matrix.to/#/#tree-sitter-chat:matrix.org) for general questions regarding treesitter queries and the `tree-sitter` CLI.
+* **Parsers** are registered in the [treesitter-parser-registry][registry];
+* **Queries** live in per-language repos (`nvim-treesitter-queries-<lang>`) under the [neovim-treesitter][org] GitHub org.
+
+For the full contributing workflow (adding languages, maintaining query repos, governance), see the [registry contributing guide][registry-contributing].
+
+Some basic knowledge of how tree-sitter works is assumed; we recommend reading
+- the [upstream documentation](https://tree-sitter.github.io/tree-sitter/);
+- [Neovim's documentation](https://neovim.io/doc/user/treesitter.html#treesitter).
+
+There are dedicated Matrix channels for questions and general help:
+- [#nvim-treesitter](https://matrix.to/#/#nvim-treesitter:matrix.org) for questions specific to Neovim's implementation and queries;
+- [#tree-sitter](https://matrix.to/#/#tree-sitter-chat:matrix.org) for general questions regarding treesitter queries and the `tree-sitter` CLI.
 
 ## Parsers
+
+Parsers are discovered from the community [registry][registry]. To add a new parser, open a pull request adding an entry to [`registry.json`][registry-json] in the registry repo and create the corresponding `nvim-treesitter-queries-<lang>` repository following the [query repo setup guide][setup-guide].
 
 >[!IMPORTANT]
 > To qualify for inclusion, a parser must meet the following criteria:
@@ -24,62 +29,26 @@ Before describing these in detail, some general advice:
 > * if the repo contains a `src/parser.c`, it must support the latest ABI
 > * if the repo does _not_ contain a `src/parser.c`, it must contain an up-to-date `src/grammar.json`
 > * if the repo contains an external scanner, it must be written in C99
->
-> Tier 1 parsers (preferred) in addition need to
-> * make regular releases following semver (_patch_ for fixes not affecting queries; _minor_ for changes introducing new nodes or patterns; _major_ for changes removing nodes or previously valid patterns)
-> * provide WASM release artifacts
-
-To add a new parser, edit the following files:
-
-1. In `lua/parsers.lua`, add an entry to the returned table of the following form:
-
-```lua
-zimbu = {
-  install_info = {
-    url = 'https://github.com/zimbulang/tree-sitter-zimbu', -- git repo; use `path` for local path
-    revision = 'v2.1', -- tag or commit hash
-    -- optional entries:
-    branch = 'develop', -- only needed if different from default branch
-    location = 'parser', -- only needed if the parser is in subdirectory of a "monorepo"
-    generate = true, -- only needed if repo does not contain pre-generated src/parser.c
-  },
-  maintainers = { '@me' }, -- the _query_ maintainers
-  tier = 1, -- stable: track versioned releases instead of latest commit
-  -- optional entries:
-  requires = { 'vim' }, -- if the queries inherit from another language
-  readme_note = "an example language",
-}
-```
-
->[!IMPORTANT]
-> The "maintainers" here refers to the person maintaining the **queries** in `nvim-treesitter`, not the parser maintainers (who likely don't use Neovim). The maintainers' duty is to review issues and PRs related to the query and to keep them updated with respect to parser changes.
-
-2. If the parser name is not the same as the Vim filetype, add an entry to the `filetypes` table in `plugin/filetypes.lua`:
-
-```lua
-  zimbu = { 'zu' },
-```
-
-3. Update the list of [supported languages] by running `make docs` (or `./scripts/update-readme.lua` if on Windows).
-
-4. Test if both `:TSInstall zimbu` and `:TSInstallFromGrammar zimbu` work without errors (`:checkhealth treesitter` or `./scripts/check-parsers.lua zimbu`).
-
->[!IMPORTANT]
-> You also need to add queries in order for the parser to actually be useful!
-
-When you're done, open a Pull Request using the [provided template](.github/PULL_REQUEST_TEMPLATE/new_language.md), e.g. using `gh pr create -B main -T new_language`.
 
 ## Queries
 
-To add (or edit existing) queries, create a corresponding `runtime/queries/zimbu/*.scm` file:
+Queries live in per-language repositories under the [neovim-treesitter][org] GitHub org:
 
-- `highlights.scm` used for syntax highlighting,
+```
+https://github.com/neovim-treesitter/nvim-treesitter-queries-<lang>
+```
+
+To fix or improve queries for a language, open a pull request in the relevant query repo. CI will validate your changes automatically.
+
+Each query repo contains one or more `.scm` files:
+
+- `highlights.scm` used for syntax highlighting;
 - `injections.scm` used to specify nodes whose content should be parsed as a different language;
-- `folds.scm`; used to define folds;
-- `locals.scm`: used to extract keyword definitions, scopes, references, etc. (not used in this plugin).
-- `indents.scm`; used to control indentation.
+- `folds.scm` used to define folds;
+- `locals.scm` used to extract keyword definitions, scopes, references, etc.;
+- `indents.scm` used to control indentation.
 
-See [tree-sitter queries] for a basic description of the query language. The following tools can be helpful when writing or editing queries:
+The following tools can be helpful when writing or editing queries:
 * [ts_query_ls] is a language server for treesitter queries, which can validate, autocomplete, and format. This tool can also be used as an offline linter and formatter (accessible through `make lintquery`, `make checkquery`, `make formatquery` targets).
 * Neovim's `:InspectTree` will show the parsed tree for a buffer and highlight the text corresponding to any given node (and vice versa).
 * `:EditQuery` opens a "playground" where you can write query patterns and see which parts of the buffer are captured by each capture.
@@ -88,10 +57,7 @@ See [tree-sitter queries] for a basic description of the query language. The fol
 > The valid captures that can be used in queries is different for each editor, so you cannot just copy them, e.g., from Helix or the parser repositories. For Neovim, all valid captures are listed below. You can verify that your changes adhere to this by running `make lintquery`.
 
 >[!IMPORTANT]
-> Since grammars can change constantly, it is important to make sure that the patterns in a query are actually valid for the parser specified in nvim-treesitter's manifest. This can be verified using `make checkquery` (which requires the parser to be installed in the default directory(!) through `nvim-treesitter`). Opening the query in Neovim with the parser installed will also show all invalid patterns, either via [ts_query_ls] or Neovim's builtin query-linter.
-
->[!TIP]
-> Before opening a PR, run `make query` to format, lint, and check all queries.
+> Since grammars can change constantly, it is important to make sure that the patterns in a query are actually valid for the parser specified in the registry. This can be verified using `make checkquery` (which requires the parser to be installed in the default directory(!) through `nvim-treesitter`). Opening the query in Neovim with the parser installed will also show all invalid patterns, either via [ts_query_ls] or Neovim's builtin query-linter.
 
 #### Inheriting languages
 
@@ -106,9 +72,11 @@ line of your file_:
 If you want to inherit a language, but don't want the languages inheriting from yours to inherit it,
 you can mark the language as optional (by putting it between parenthesis).
 
+Inheritance is also declared in the query repo's `parser.json` via the `inherits` field. This is an **install-time** declaration: the installer uses it to know which dependency query repos to fetch and at which version bounds. The `; inherits:` comment is a separate **runtime** mechanism that tells Neovim to prepend the parent language's queries when loading them.
+
 #### Formatting
 
-All queries are expected to follow a standard format, with every node on a single line and indented by two spaces for each level of nesting. You can automatically format the bundled queries by running `make formatquery`.
+All queries are expected to follow a standard format, with every node on a single line and indented by two spaces for each level of nesting. You can automatically format queries by running `make formatquery`.
 
 Should you need to preserve a specific format for a node, you can exempt it (and all contained nodes) by placing before it
 ```query
@@ -342,7 +310,7 @@ The valid captures are:
 ```query
 @injection.language ; dynamic detection of the injection language (i.e. the text of the captured node describes the language)
 @injection.content  ; region for the dynamically detected language
-@injection.filename ; indicates that the captured node’s text may contain a filename; the corresponding filetype is then looked-up up via vim.filetype.match() and treated as the name of a language that should be used to re-parse the `@injection.content`
+@injection.filename ; indicates that the captured node's text may contain a filename; the corresponding filetype is then looked-up up via vim.filetype.match() and treated as the name of a language that should be used to re-parse the `@injection.content`
 ```
 
 >[!TIP]
@@ -530,7 +498,26 @@ Possible scope values are:
 - `global`: The definition is valid in the root scope
 - `local`: The definition is valid in the containing scope. This is the default behavior
 
+## Contributing to this repo (nvim-treesitter)
 
-[supported languages]: https://github.com/nvim-treesitter/nvim-treesitter/SUPPORTED_LANGUAGES.md
-[tree-sitter queries]: https://tree-sitter.github.io/tree-sitter/using-parsers/queries/index.html
+This repository contains the **installer plugin** itself: the commands (`:TSInstall`, `:TSUpdate`, etc.), the install/update machinery, the indentation engine, and related infrastructure.
+
+Contributions to this repo are for changes to:
+* the installer and update logic
+* commands and user-facing API
+* the indentation engine
+* health checks and diagnostics
+* documentation for the plugin itself
+
+Parser definitions and query files are **not** managed here. See [Parsers](#parsers) and [Queries](#queries) above for where those contributions belong.
+
+>[!NOTE]
+> `lua/nvim-treesitter/parsers.lua` is a **legacy compatibility shim** retained so that existing configurations calling `require('nvim-treesitter.parsers')` do not break. It still contains old-style entries with pinned revisions and tier fields. **Do not add or update parser entries there** — the [registry][registry] is the authoritative source going forward.
+
+
+[org]: https://github.com/neovim-treesitter
+[registry]: https://github.com/neovim-treesitter/treesitter-parser-registry
+[registry-json]: https://github.com/neovim-treesitter/treesitter-parser-registry/blob/main/registry.json
+[registry-contributing]: https://github.com/neovim-treesitter/treesitter-parser-registry/blob/main/docs/contributing.md
+[setup-guide]: https://github.com/neovim-treesitter/treesitter-parser-registry/blob/main/docs/contributing.md#creating-a-query-repo
 [ts_query_ls]: https://github.com/ribru17/ts_query_ls

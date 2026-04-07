@@ -1,0 +1,102 @@
+# nvim-treesitter-queries-{{LANG}}
+
+[![Validate Queries](https://github.com/neovim-treesitter/nvim-treesitter-queries-{{LANG}}/actions/workflows/validate.yml/badge.svg)](https://github.com/neovim-treesitter/nvim-treesitter-queries-{{LANG}}/actions/workflows/validate.yml)
+
+Neovim tree-sitter queries for **{{LANG}}**, part of the
+[neovim-treesitter](https://github.com/neovim-treesitter) ecosystem.
+
+These query files were originally extracted from
+[nvim-treesitter/nvim-treesitter](https://github.com/nvim-treesitter/nvim-treesitter)
+and are now maintained independently, enabling per-language versioning and
+community ownership.
+
+---
+
+## Contents
+
+| File | Purpose | Required? |
+|------|---------|-----------|
+| `queries/highlights.scm` | Syntax highlighting | Recommended |
+| `queries/injections.scm` | Embedded language injections | Optional |
+| `queries/folds.scm` | Code folding ranges | Optional |
+| `queries/indents.scm` | Indentation rules | Optional |
+| `queries/locals.scm` | Scope / locals (used by refactor plugins) | Optional |
+
+Not every language needs all five files. Only `highlights.scm` is expected for
+most languages; the rest are added when the grammar supports them.
+
+---
+
+## `parser.json`
+
+`parser.json` describes the tree-sitter grammar this query set targets. It is
+read by the CI workflow and by compatible plugin managers to fetch the correct
+parser version.
+
+```jsonc
+{
+  // URL of the upstream grammar repository
+  "url": "https://github.com/tree-sitter/tree-sitter-{{LANG}}",
+
+  // Oldest parser version these queries are known to work with.
+  // Uses a git ref (tag, branch, or commit SHA). "HEAD" means latest.
+  "min_version": "v0.23.0",
+
+  // Optional: newest parser version tested against.
+  // Omit to leave the upper bound open.
+  "max_version": null,
+
+  // Optional: subdirectory inside the grammar repo that contains the
+  // parser source (only needed for multi-language grammar repos).
+  "location": "",
+
+  // Set true when the grammar is pre-built and no compile step is needed.
+  "queries_only": false
+}
+```
+
+Fields are consumed by `.github/workflows/validate.yml` at CI time and by
+plugin managers (e.g. [nvim-treesitter](https://github.com/nvim-treesitter/nvim-treesitter))
+at install time.
+
+---
+
+## Contributing
+
+Contributions — query improvements, new query types, parser.json updates — are
+welcome.
+
+Please read the contribution guide before opening a PR:
+<https://github.com/neovim-treesitter/treesitter-parser-registry/blob/main/docs/contributing.md>
+
+Quick checklist:
+
+- [ ] Queries pass the CI `validate.yml` workflow locally
+  (`ts-query-ls check --parser <parser.so> queries/`)
+- [ ] Changes are scoped to `{{LANG}}` — do not include files for other languages
+- [ ] `parser.json` is updated if the minimum parser version changes
+
+---
+
+## Maintainers
+
+This repository is governed by `CODEOWNERS`. Anyone listed there receives review
+requests for all pull requests and is considered the active maintainer(s) of the
+`{{LANG}}` queries.
+
+**Claiming maintainership**: open a PR that adds your GitHub username to
+`CODEOWNERS`. See the registry documentation for the full process:
+<https://github.com/neovim-treesitter/treesitter-parser-registry/blob/main/docs/contributing.md>
+
+If `CODEOWNERS` is empty this language is unmaintained — contributions and
+maintainership claims are especially welcome.
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE).
+
+> Query files were originally contributed to
+> [nvim-treesitter/nvim-treesitter](https://github.com/nvim-treesitter/nvim-treesitter)
+> under the MIT license by the nvim-treesitter contributors.

@@ -6,3 +6,4 @@ nvim.appimage
 nvim-linux-x86_64*
 nvim-macos*
 nvim-win64*
+.DS_Store
