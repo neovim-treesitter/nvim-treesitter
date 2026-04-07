@@ -32,6 +32,7 @@ return {
       url = 'https://github.com/aheber/tree-sitter-sfapex',
     },
     maintainers = { '@aheber', '@xixiafinland' },
+    requires = { 'soql' },
     tier = 2,
   },
   arduino = {
@@ -129,6 +130,7 @@ return {
       url = 'https://github.com/EmranMR/tree-sitter-blade',
     },
     maintainers = { '@calebdw' },
+    requires = { 'html' },
     tier = 2,
   },
   bp = {
@@ -918,6 +920,7 @@ return {
       url = 'https://github.com/ngalaiko/tree-sitter-go-template',
     },
     maintainers = { '@qvalentin' },
+    requires = { 'gotmpl' },
     tier = 2,
   },
   hjson = {
@@ -1480,6 +1483,7 @@ return {
       url = 'https://github.com/tree-sitter-grammars/tree-sitter-nqc',
     },
     maintainers = { '@amaanq' },
+    requires = { 'c' },
     tier = 2,
   },
   nu = {
@@ -1854,6 +1858,7 @@ return {
       url = 'https://github.com/tris203/tree-sitter-razor',
     },
     maintainers = { '@tris203' },
+    requires = { 'c_sharp' },
     tier = 2,
   },
   rbs = {
@@ -2040,6 +2045,7 @@ return {
     },
     maintainers = { '@theHamsta' },
     readme_note = 'Shader Slang',
+    requires = { 'c', 'hlsl' },
     tier = 2,
   },
   slim = {
@@ -2080,6 +2086,7 @@ return {
       url = 'https://github.com/osthomas/tree-sitter-snakemake',
     },
     maintainers = { '@osthomas' },
+    requires = { 'python' },
     tier = 2,
   },
   snl = {
@@ -2188,6 +2195,7 @@ return {
       url = 'https://github.com/mskelton/tree-sitter-styled',
     },
     maintainers = { '@mskelton' },
+    requires = { 'css' },
     tier = 2,
   },
   supercollider = {
@@ -2221,7 +2229,7 @@ return {
       url = 'https://github.com/tree-sitter-grammars/tree-sitter-svelte',
     },
     maintainers = { '@amaanq' },
-    requires = { 'html_tags' },
+    requires = { 'html', 'html_tags' },
     tier = 2,
   },
   sway = {
@@ -2586,6 +2594,7 @@ return {
       url = 'https://github.com/tree-sitter-grammars/tree-sitter-wgsl-bevy',
     },
     maintainers = { '@theHamsta' },
+    requires = { 'wgsl' },
     tier = 2,
   },
   wing = {
@@ -2610,6 +2619,7 @@ return {
       url = 'https://github.com/BlockLune/tree-sitter-wxml',
     },
     maintainers = { '@BlockLune' },
+    requires = { 'html_tags' },
     tier = 2,
   },
   xcompose = {
