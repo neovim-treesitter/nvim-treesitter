@@ -106,7 +106,9 @@ local function join(max_jobs, tasks)
       end
     end
     for i = 1, max_jobs do
-      tasks[i]():await(cb)
+      if tasks[i] then
+        tasks[i]():await(cb)
+      end
     end
   end)
 end
@@ -440,9 +442,9 @@ local downloading = {} ---@type table<string, string|false|nil>
 ---@param versions   table   { parser_version, queries_version }
 ---@param install_dir string
 ---@param cache_dir  string
----@param opts       InstallOptions
+---@param _opts       InstallOptions
 ---@return string? err
-local function install_one(lang, entry, versions, install_dir, cache_dir, opts)
+local function install_one(lang, entry, versions, install_dir, cache_dir, _opts)
   local logger = log.new('install/' .. lang)
   local source = entry.source
   local stype = source.type -- "self_contained" | "external_queries" | "queries_only" | "local"
@@ -493,10 +495,8 @@ local function install_one(lang, entry, versions, install_dir, cache_dir, opts)
     -- Read parser.json from the queries repo root to get build metadata.
     local manifest_path = fs.joinpath(project_dir, 'parser.json')
     if uv.fs_stat(manifest_path) then
-      local ok, data = pcall(
-        vim.fn.json_decode,
-        table.concat(vim.fn.readfile(manifest_path) --[[@as table]], '\n')
-      )
+      local ok, data =
+        pcall(fn.json_decode, table.concat(fn.readfile(manifest_path) --[[@as table]], '\n'))
       if ok and type(data) == 'table' then
         ---@cast data table
         -- Merge with any entry-level manifest (entry-level wins for version bounds).
@@ -572,7 +572,7 @@ local function install_one(lang, entry, versions, install_dir, cache_dir, opts)
       -- its own parser_location subdirectory from it.
       local dl_key = parser_url .. '@' .. parser_ref
       -- Shared dir is keyed by URL+ref so it is neutral across langs.
-      local shared_dir = fs.joinpath(cache_dir, 'shared-' .. vim.fn.sha256(dl_key):sub(1, 12))
+      local shared_dir = fs.joinpath(cache_dir, 'shared-' .. fn.sha256(dl_key):sub(1, 12))
 
       if downloading[dl_key] == false then
         -- Another coroutine is downloading — wait for it.
@@ -595,7 +595,7 @@ local function install_one(lang, entry, versions, install_dir, cache_dir, opts)
           local err = do_download_tarball(
             logger,
             turl,
-            'shared-' .. vim.fn.sha256(dl_key):sub(1, 12),
+            'shared-' .. fn.sha256(dl_key):sub(1, 12),
             cache_dir,
             shared_dir
           )
@@ -939,9 +939,8 @@ M.update = a.async(function(languages, opts)
   end
 
   -- 3. Filter to languages that actually need an update
-  local cache_mod2 = require('nvim-treesitter.cache')
   local to_update = vim.tbl_filter(function(lang)
-    local state = cache_mod2.get_installed(lang)
+    local state = cache_mod.get_installed(lang)
     local versions = (cache.parsers and cache.parsers[lang]) or {}
     if not state then
       return true

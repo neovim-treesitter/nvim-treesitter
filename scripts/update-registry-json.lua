@@ -29,7 +29,7 @@ local function is_semver(rev)
 end
 
 --- Run a shell command and return trimmed stdout, or nil on failure.
-local function sh(cmd)
+local function _sh(cmd)
   local result = vim.system(vim.split(cmd, '%s+'), { text = true }):wait()
   if result.code ~= 0 then
     return nil
@@ -125,7 +125,7 @@ end
 -- ---------------------------------------------------------------------------
 
 local count_added = 0
-local count_skipped = 0
+local _count_skipped = 0
 local count_no_repo = 0
 local count_exists = 0
 local added_langs = {}
