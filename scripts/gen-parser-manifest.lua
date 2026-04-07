@@ -46,19 +46,18 @@ else
     semver         = semver,
     -- parser_version: exact git tag or SHA of the parser repo these queries
     -- are tested against.  Used as the install target; overrides version
-    -- discovery.  Set to the current revision when it is a semver tag,
-    -- otherwise leave nil for the maintainer to fill in.
+    -- discovery.
     parser_version = install.revision or vim.NIL,
     location       = install.location or vim.NIL,
-    -- generate: set true when the parser repo does not ship a pre-built
-    -- src/parser.c and requires `tree-sitter generate` before compiling.
-    -- generate_from_json: true = use src/grammar.json (faster, no JS runtime),
-    --                     false = use grammar.js (requires a JS runtime).
-    -- Omit both fields (nil) when generate is not needed.
-    generate          = install.generate or vim.NIL,
-    generate_from_json = install.generate_from_json ~= nil
-                          and install.generate_from_json or vim.NIL,
   }
+  -- generate / generate_from_json: only emit when generate is actually needed.
+  -- Omitting the keys (rather than emitting null) keeps parser.json clean.
+  if install.generate then
+    manifest.generate = true
+    if install.generate_from_json ~= nil then
+      manifest.generate_from_json = install.generate_from_json
+    end
+  end
 end
 
 local ok, encoded = pcall(vim.json.encode, manifest)
