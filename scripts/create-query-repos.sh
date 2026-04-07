@@ -1,7 +1,14 @@
 #!/usr/bin/env bash
 # create-query-repos.sh — extract nvim-treesitter query files into per-language GitHub repos
 #
-# Usage: ./scripts/create-query-repos.sh <org> [lang ...]
+# Usage:
+#   ./scripts/create-query-repos.sh [--update] <org> [lang ...]
+#
+# Modes:
+#   (default)  Create new repos only. Skip repos that already exist and are populated.
+#   --update   Update existing repos: regenerate parser.json (picking up parser_version,
+#              generate flags etc. from gen-parser-manifest.lua) and commit if changed.
+#              Does not recreate repos, copy queries, or overwrite CI/README/CODEOWNERS.
 #
 # Requires: gh (GitHub CLI, authenticated), git, nvim, jq
 # Run from the nvim-treesitter repo root.
@@ -20,8 +27,14 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 # Argument handling
 # ---------------------------------------------------------------------------
+UPDATE_MODE=false
+if [[ "${1:-}" == "--update" ]]; then
+  UPDATE_MODE=true
+  shift
+fi
+
 if [[ $# -lt 1 ]]; then
-  echo "Usage: $0 <org> [lang ...]" >&2
+  echo "Usage: $0 [--update] <org> [lang ...]" >&2
   exit 1
 fi
 
@@ -80,8 +93,45 @@ process_lang() {
   # Working directory
   local TMPDIR
   TMPDIR="$(mktemp -d)"
-  # Ensure cleanup on any exit from this function
   trap 'rm -rf "$TMPDIR"' RETURN
+
+  # ── UPDATE MODE ──────────────────────────────────────────────────────────
+  if [[ "$UPDATE_MODE" == true ]]; then
+    # Repo must already exist and be populated
+    if ! gh repo view "${FULL_REPO}" --json name >/dev/null 2>&1; then
+      echo "    skip: ${FULL_REPO} does not exist (run without --update to create)"
+      return 2
+    fi
+
+    git clone --depth 1 "https://github.com/${FULL_REPO}.git" "${TMPDIR}/repo" 2>/dev/null
+    local REPO_DIR="${TMPDIR}/repo"
+
+    # Regenerate parser.json
+    local NEW_MANIFEST
+    NEW_MANIFEST="$(mktemp)"
+    if ! nvim --headless -l "${REPO_ROOT}/scripts/gen-parser-manifest.lua" "${LANG}" \
+         > "$NEW_MANIFEST" 2>/dev/null; then
+      echo "    WARN: gen-parser-manifest.lua failed for ${LANG} — skipping"
+      return 3
+    fi
+
+    # Skip if unchanged
+    if cmp -s "$NEW_MANIFEST" "${REPO_DIR}/parser.json" 2>/dev/null; then
+      echo "    skip: parser.json unchanged"
+      return 2
+    fi
+
+    cp "$NEW_MANIFEST" "${REPO_DIR}/parser.json"
+
+    git -C "${REPO_DIR}" add parser.json
+    git -C "${REPO_DIR}" commit -m \
+      "fix: regenerate parser.json (parser_version, generate flags)"
+    git -C "${REPO_DIR}" push
+    echo "    updated: https://github.com/${FULL_REPO}"
+    return 0
+  fi
+
+  # ── CREATE MODE ──────────────────────────────────────────────────────────
 
   # 1. Check repo state: populated → skip, empty → reuse, missing → create
   local _repo_json
@@ -145,8 +195,6 @@ CODEOWNERS
   git -C "${REPO_DIR}" tag v0.1.0
   git -C "${REPO_DIR}" push --follow-tags
 
-  # 12. Cleanup handled by trap RETURN
-
   echo "    done: https://github.com/${FULL_REPO}"
   return 0
 }
@@ -187,10 +235,15 @@ done
 # ---------------------------------------------------------------------------
 echo ""
 echo "========================================"
-echo "Summary"
+echo "Summary${UPDATE_MODE:+ (--update mode)}"
 echo "========================================"
-printf "  Created : %d\n" "$COUNT_CREATED"
-printf "  Skipped : %d (already exist)\n" "$COUNT_SKIPPED"
+if [[ "$UPDATE_MODE" == true ]]; then
+  printf "  Updated : %d\n" "$COUNT_CREATED"
+  printf "  Skipped : %d (unchanged or missing)\n" "$COUNT_SKIPPED"
+else
+  printf "  Created : %d\n" "$COUNT_CREATED"
+  printf "  Skipped : %d (already exist)\n" "$COUNT_SKIPPED"
+fi
 printf "  Failed  : %d\n" "$COUNT_FAILED"
 if [[ ${#FAILED_LANGS[@]} -gt 0 ]]; then
   echo "  Failed langs:"
