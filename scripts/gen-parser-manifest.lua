@@ -31,25 +31,25 @@ local manifest
 if not install then
   -- queries_only lang (e.g. ecma — no parser binary)
   manifest = {
-    lang         = lang,
-    url          = vim.NIL,
-    semver       = vim.NIL,
-    min_version  = vim.NIL,
-    max_version  = vim.NIL,
-    location     = vim.NIL,
-    queries_only = true,
+    lang           = lang,
+    url            = vim.NIL,
+    semver         = vim.NIL,
+    parser_version = vim.NIL,
+    location       = vim.NIL,
+    queries_only   = true,
   }
 else
   local semver = is_semver(install.revision)
   manifest = {
-    lang              = lang,
-    url               = install.url,
-    semver            = semver,
-    -- min_version: set to current revision if it's a semver tag,
-    -- otherwise nil (maintainer must set manually after first semver release).
-    min_version       = semver and install.revision or vim.NIL,
-    max_version       = vim.NIL,
-    location          = install.location or vim.NIL,
+    lang           = lang,
+    url            = install.url,
+    semver         = semver,
+    -- parser_version: exact git tag or SHA of the parser repo these queries
+    -- are tested against.  Used as the install target; overrides version
+    -- discovery.  Set to the current revision when it is a semver tag,
+    -- otherwise leave nil for the maintainer to fill in.
+    parser_version = install.revision or vim.NIL,
+    location       = install.location or vim.NIL,
     -- generate: set true when the parser repo does not ship a pre-built
     -- src/parser.c and requires `tree-sitter generate` before compiling.
     -- generate_from_json: true = use src/grammar.json (faster, no JS runtime),

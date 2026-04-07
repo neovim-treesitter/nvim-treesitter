@@ -38,17 +38,14 @@ parser version.
   // URL of the upstream grammar repository
   "url": "https://github.com/tree-sitter/tree-sitter-{{LANG}}",
 
-  // Oldest parser version these queries are known to work with.
-  // Uses a git ref (tag, branch, or commit SHA). "HEAD" means latest.
-  "min_version": "v0.23.0",
-
-  // Optional: newest parser version tested against.
-  // Omit to leave the upper bound open.
-  "max_version": null,
+  // Exact git ref (tag or SHA) of the parser repo these queries are tested
+  // against.  The installer uses this as the checkout target — omit (null)
+  // to fall back to the latest tag or HEAD on the parser repo.
+  "parser_version": "v0.23.0",
 
   // Optional: subdirectory inside the grammar repo that contains the
   // parser source (only needed for multi-language grammar repos).
-  "location": "",
+  "location": null,
 
   // Set true when the grammar is pre-built and no compile step is needed.
   "queries_only": false,
@@ -85,7 +82,7 @@ Quick checklist:
 - [ ] Queries pass the CI `validate.yml` workflow locally
   (`ts-query-ls check --parser <parser.so> queries/`)
 - [ ] Changes are scoped to `{{LANG}}` — do not include files for other languages
-- [ ] `parser.json` is updated if the minimum parser version changes
+- [ ] `parser.json` is updated if the pinned parser version changes
 
 ---
 

@@ -460,7 +460,10 @@ local function install_one(lang, entry, versions, install_dir, cache_dir, opts)
   end
 
   -- ── compatibility check (needs parser_manifest populated above) ───────────
-  if parser_manifest.max_version and versions.latest_parser then
+  -- If parser_version is pinned, that is the install target — no need to
+  -- compare against latest.  Only warn when using latest and it is beyond
+  -- a declared ceiling (legacy max_version field, kept for back-compat).
+  if not parser_manifest.parser_version and parser_manifest.max_version and versions.latest_parser then
     if semver_gt(versions.latest_parser, parser_manifest.max_version) then
       vim.notify(
         string.format(
@@ -477,7 +480,10 @@ local function install_one(lang, entry, versions, install_dir, cache_dir, opts)
   -- ── download + build parser ───────────────────────────────────────────────
   if need_parser then
     local project_name  = 'tree-sitter-' .. lang
-    local parser_ref    = versions.latest_parser or 'main'
+    -- parser_manifest.parser_version pins an exact tag/SHA that the queries
+    -- maintainer has verified against; prefer it over whatever happens to be
+    -- latest on the parser repo right now.
+    local parser_ref    = parser_manifest.parser_version or versions.latest_parser or 'main'
     -- self_contained uses source.url; external_queries uses source.parser_url
     local parser_url    = source.parser_url or source.url
     local project_dir   = fs.joinpath(cache_dir, project_name)
