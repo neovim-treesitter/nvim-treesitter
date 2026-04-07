@@ -1,4 +1,4 @@
-name: Tests
+name: Generate and Test
 
 on:
   pull_request:
