@@ -128,10 +128,6 @@ formatquery: $(TSQUERYLS)
 checkquery: $(TSQUERYLS)
 	$(TSQUERYLS)/ts_query_ls check runtime/queries
 
-.PHONY: docs
-docs: $(NVIM)
-	$(NVIM_BIN) -l scripts/update-readme.lua
-
 .PHONY: tests
 tests: $(NVIM) $(HLASSERT) $(PLENTEST) $(PLENARY)
 	HLASSERT=$(HLASSERT)/highlight-assertions PLENTEST=$(PLENTEST) PLENARY=$(PLENARY) \
@@ -139,7 +135,7 @@ tests: $(NVIM) $(HLASSERT) $(PLENTEST) $(PLENARY)
 		-c "lua require('plentest').test_directory('tests/$(TESTS)', { minimal_init = './scripts/minimal_init.lua' })"
 
 .PHONY: all
-all: lua query docs tests
+all: lua query tests
 
 .PHONY: clean
 clean:

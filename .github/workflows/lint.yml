@@ -38,13 +38,4 @@ jobs:
       - name: Lint
         run: make lintquery
 
-  readme:
-    name: Lint docs
-    runs-on: ubuntu-slim
-    steps:
-      - uses: actions/checkout@v6
 
-      - name: Check SUPPORTED_LANGUAGES
-        run: |
-          make docs
-          git diff --exit-code

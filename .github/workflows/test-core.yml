@@ -56,3 +56,7 @@ jobs:
       - name: Run indents tests
         if: ${{ matrix.os != 'windows-latest' }}
         run: make tests TESTS=indent NVIM_BIN=$NVIM
+
+      - name: Run installer tests
+        if: ${{ matrix.os != 'windows-latest' }}
+        run: make tests TESTS=install NVIM_BIN=$NVIM
