@@ -738,13 +738,11 @@ M.update = a.async(function(languages, opts)
   if #stale > 0 then
     log.info('Checking versions for %d parser(s)...', #stale)
     a.schedule()
-    local checked = 0
     a.await(1, function(cb)
-      version_mod.refresh_all(registry, stale, cache, cb, nil, function()
-        checked = checked + 1
-        log.info('Checking versions... %d/%d', checked, #stale)
-      end)
+      version_mod.refresh_all(registry, stale, cache, cb)
     end)
+    log.info('Version check complete')
+    a.schedule()
   end
 
   -- 3. Filter to languages that actually need an update
