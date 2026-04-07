@@ -27,8 +27,8 @@ local info = parsers[lang]
 if not info then
   io.stderr:write('Unknown language: ' .. lang .. '\n')
   os.exit(1)
+  return
 end
-assert(info)
 ---@cast info ParserInfo
 
 local install = info.install_info
@@ -53,13 +53,13 @@ end
 
 -- Build the auto-generated fields (always overwrite from parsers.lua).
 ---@class ManifestRecord
----@field lang             string
----@field url              string|userdata|nil
----@field semver           boolean|userdata|nil
----@field parser_version   string|userdata|nil
----@field location         string|userdata|nil
----@field queries_only     boolean?
----@field generate         boolean?
+---@field lang               string
+---@field url                string|userdata|nil
+---@field semver             boolean|nil
+---@field parser_version     string|nil
+---@field location           string|userdata|nil
+---@field queries_only       boolean?
+---@field generate           boolean?
 ---@field generate_from_json boolean?
 
 ---@type ManifestRecord
@@ -77,7 +77,7 @@ else
   generated.url = install.url
   generated.semver = semver
   -- parser_version: exact git tag or SHA these queries are tested against.
-  generated.parser_version = install.revision or vim.NIL
+  generated.parser_version = install.revision
   generated.location = install.location or vim.NIL
   -- generate / generate_from_json: only emit when needed.
   if install.generate then
@@ -122,8 +122,8 @@ local fmt = vim
   .system({ 'python3', '-m', 'json.tool', '--indent', '2' }, { stdin = encoded, text = true })
   :wait()
 
-if fmt.code == 0 then
-  io.write(assert(fmt.stdout))
+if fmt.code == 0 and fmt.stdout then
+  io.write(fmt.stdout)
 else
   io.write(encoded .. '\n')
 end

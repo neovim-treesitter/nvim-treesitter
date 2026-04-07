@@ -10,15 +10,11 @@
       ]
     }
   },
-  "workspace": {
-    "library": [
-      ".test-deps/plenary.nvim"
-    ]
-  },
   "diagnostics": {
     "disable": [
       "unnecessary-if",
-      "incomplete-signature-doc"
+      "incomplete-signature-doc",
+      "unresolved-require"
     ],
     "enables": [
       "iter-variable-reassign",

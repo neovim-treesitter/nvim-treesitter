@@ -44,11 +44,17 @@ for k, p in pairs(parsers) do
       local stdout = vim.split(job:wait().stdout or '', '\n')
       jobs[name] = nil
 
-      assert(parsers[name])
-      local info = assert(parsers[name].install_info)
+      local parser = parsers[name]
+      if not parser then
+        goto continue
+      end
+      local info = parser.install_info
+      if not info then
+        goto continue
+      end
 
       local sha ---@type string?
-      if parsers[name].tier == 1 then
+      if parser.tier == 1 then
         sha = stdout[#stdout - 1] and stdout[#stdout - 1]:match('v[%d%.]+$')
       else
         local branch = info.branch
@@ -68,11 +74,15 @@ for k, p in pairs(parsers) do
         info.revision = sha
         updates[#updates + 1] = name
       end
+
+      ::continue::
     end
   end
 end
 
-assert(#vim.tbl_keys(jobs) == 0)
+if #vim.tbl_keys(jobs) ~= 0 then
+  error('jobs did not complete: ' .. #vim.tbl_keys(jobs) .. ' remaining')
+end
 
 if #updates > 0 then
   -- write new parser file
@@ -89,9 +99,12 @@ if #updates > 0 then
   -- pass list to workflow
   local gh_env = os.getenv('GITHUB_ENV')
   if gh_env then
-    local env = assert(io.open(gh_env, 'a'))
-    env:write(string.format('UPDATED_PARSERS=%s\n', update_list))
-    env:close()
+    local f = io.open(gh_env, 'a')
+    if not f then
+      error('could not open GITHUB_ENV for writing')
+    end
+    f:write(string.format('UPDATED_PARSERS=%s\n', update_list))
+    f:close()
   end
 else
   print('\nAll parsers up to date!')

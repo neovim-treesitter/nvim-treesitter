@@ -106,7 +106,6 @@ local function join(max_jobs, tasks)
       end
     end
     for i = 1, max_jobs do
-      assert(tasks[i])
       tasks[i]():await(cb)
     end
   end)
@@ -774,7 +773,10 @@ local M = {}
 ---@param ...string
 ---@return string
 function M.get_package_path(...)
-  local info = assert(debug.getinfo(1, 'S'))
+  local info = debug.getinfo(1, 'S')
+  if not info then
+    error('debug.getinfo unavailable')
+  end
   return fs.joinpath(fn.fnamemodify(info.source:sub(2), ':p:h:h:h'), ...)
 end
 

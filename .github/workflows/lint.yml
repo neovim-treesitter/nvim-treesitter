@@ -21,9 +21,6 @@ jobs:
           make formatlua
           git diff --exit-code
 
-      - name: Install plenary
-        run: make plenary
-
       - name: Lint
         run: make checklua
 

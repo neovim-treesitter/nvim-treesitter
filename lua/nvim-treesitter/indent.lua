@@ -53,7 +53,7 @@ local function find_delimiter(bufnr, node, delimiter)
       local trimmed_after_delim
       local escaped_delimiter = delimiter:gsub('[%-%.%+%[%]%(%)%$%^%%%?%*]', '%%%1')
       trimmed_after_delim =
-        assert(line):sub(end_char[2] + 1):gsub('[%s' .. escaped_delimiter .. ']*', '')
+        (line or ''):sub(end_char[2] + 1):gsub('[%s' .. escaped_delimiter .. ']*', '')
       return child, #trimmed_after_delim == 0
     end
   end
@@ -97,8 +97,9 @@ local get_indents = memoize(function(bufnr, root, lang)
     return map
   end
   for id, node, metadata in query:iter_captures(root, bufnr) do
-    if assert(query.captures[id]):sub(1, 1) ~= '_' then
-      map[query.captures[id]][node:id()] = metadata or {}
+    local capture_name = query.captures[id]
+    if capture_name and capture_name:sub(1, 1) ~= '_' then
+      map[capture_name][node:id()] = metadata or {}
     end
   end
 

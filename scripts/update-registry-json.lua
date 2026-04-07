@@ -82,14 +82,17 @@ local parsers = require('nvim-treesitter.parsers')
 -- Load existing registry.json
 -- ---------------------------------------------------------------------------
 
-local reg_file_or_nil = io.open(REGISTRY_PATH, 'r')
-if not reg_file_or_nil then
-  io.stderr:write('ERROR: Could not open ' .. REGISTRY_PATH .. '\n')
-  os.exit(1)
+local reg_raw
+do
+  local f = io.open(REGISTRY_PATH, 'r')
+  if not f then
+    io.stderr:write('ERROR: Could not open ' .. REGISTRY_PATH .. '\n')
+    os.exit(1)
+    return
+  end
+  reg_raw = f:read('*a')
+  f:close()
 end
-local reg_file = reg_file_or_nil
-local reg_raw = reg_file:read('*a')
-reg_file:close()
 
 local ok, registry = pcall(vim.json.decode, reg_raw)
 if not ok or type(registry) ~= 'table' then
@@ -218,19 +221,22 @@ if count_added > 0 then
   out_tbl['$schema'] = schema
 
   local json_out, err = pretty_json(out_tbl)
-  if err then
-    io.stderr:write('ERROR: ' .. err .. '\n')
+  if err or not json_out then
+    io.stderr:write('ERROR: ' .. (err or 'pretty_json returned nil') .. '\n')
     os.exit(1)
+    return
   end
 
-  local f_or_nil = io.open(REGISTRY_PATH, 'w')
-  if not f_or_nil then
-    io.stderr:write('ERROR: Could not write ' .. REGISTRY_PATH .. '\n')
-    os.exit(1)
+  do
+    local f = io.open(REGISTRY_PATH, 'w')
+    if not f then
+      io.stderr:write('ERROR: Could not write ' .. REGISTRY_PATH .. '\n')
+      os.exit(1)
+      return
+    end
+    f:write(json_out)
+    f:close()
   end
-  local f = f_or_nil
-  f:write(assert(json_out))
-  f:close()
   io.write('\nWrote ' .. REGISTRY_PATH .. '\n')
 end
 
