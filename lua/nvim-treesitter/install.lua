@@ -561,7 +561,7 @@ local function install_one(lang, entry, versions, install_dir, cache_dir, opts)
 
     -- ── inheritance resolution ──────────────────────────────────────────────
     a.await(1, function(cb)
-      require('nvim-treesitter.queries_resolver').resolve(lang, config.get_install_dir(''), cb)
+      require('nvim-treesitter.queries_resolver').resolve(lang, config.get_install_dir('queries'), cb)
     end)
   end
 
@@ -713,12 +713,21 @@ M.update = a.async(function(languages, opts)
     languages = 'all'
   end
 
-  -- 1. Load registry first — norm_languages/get_available depends on registry.loaded
+  -- 1. Load registry (may require a network fetch — notify the user)
   local registry  = require('nvim-treesitter.registry')
+  if not registry.loaded then
+    log.info('Fetching parser registry...')
+    a.schedule()
+  end
   a.await(1, function(cb) registry.load(cb) end)
 
   -- Only consider already-installed languages for updates
   languages = config.norm_languages(languages, { missing = true })
+
+  if #languages == 0 then
+    if opts.summary then log.info('No parsers installed') end
+    return true
+  end
 
   -- 2. Load cache and refresh stale version info
   local cache_mod = require('nvim-treesitter.cache')
@@ -727,8 +736,14 @@ M.update = a.async(function(languages, opts)
   local version_mod = require('nvim-treesitter.version')
   local stale = opts.force and languages or cache_mod.stale_langs(cache, languages)
   if #stale > 0 then
+    log.info('Checking versions for %d parser(s)...', #stale)
+    a.schedule()
+    local checked = 0
     a.await(1, function(cb)
-      version_mod.refresh_all(registry, stale, cache, cb)
+      version_mod.refresh_all(registry, stale, cache, cb, nil, function()
+        checked = checked + 1
+        log.info('Checking versions... %d/%d', checked, #stale)
+      end)
     end)
   end
 
@@ -747,6 +762,9 @@ M.update = a.async(function(languages, opts)
     if opts.summary then log.info('All parsers are up-to-date') end
     return true
   end
+
+  log.info('Updating %d parser(s)...', #to_update)
+  a.schedule()
 
   -- 4. Perform installs (force = true since we already decided updates are needed)
   local cache_dir   = fs.normalize(fn.stdpath('cache') --[[@as string]])
@@ -772,9 +790,9 @@ M.update = a.async(function(languages, opts)
   join(opts.max_jobs or MAX_JOBS, tasks)
   cache_mod.save(cache)
 
-  if #tasks > 1 then
-    a.schedule()
-    if opts.summary then
+  a.schedule()
+  if opts.summary then
+    if #tasks > 0 then
       log.info('Updated %d/%d languages', done, #tasks)
     end
   end

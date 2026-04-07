@@ -115,6 +115,7 @@ end
 ---
 --- Fires up to `max_concurrency` (default 10) parallel host requests.
 --- When all refreshes complete (or fail), calls `on_done(updated_cache)`.
+--- `on_progress()` is called (if provided) after each language finishes.
 ---
 --- The cache table is mutated in-place and also returned via on_done so
 --- callers can save it immediately.
@@ -124,7 +125,8 @@ end
 ---@param cache           table     cache table from cache.load()
 ---@param on_done         fun(cache: table)
 ---@param max_concurrency integer?  defaults to 10
-function M.refresh_all(registry, langs, cache, on_done, max_concurrency)
+---@param on_progress     fun()?    called after each language is checked
+function M.refresh_all(registry, langs, cache, on_done, max_concurrency, on_progress)
   local limit    = max_concurrency or 10
   local sem      = semaphore(limit)
   local pending  = #langs
@@ -137,6 +139,9 @@ function M.refresh_all(registry, langs, cache, on_done, max_concurrency)
 
   local function finish()
     pending = pending - 1
+    if on_progress then
+      vim.schedule(on_progress)
+    end
     if pending == 0 then
       on_done(cache)
     end
