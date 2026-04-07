@@ -32,13 +32,20 @@ jobs:
         run: |
           bash ./scripts/ci-install.sh
 
+      - name: Install plenary
+        run: make plenary
+
       - if: inputs.type == 'build'
         name: Compile parsers
-        run: $NVIM -l ./scripts/install-parsers.lua --max-jobs=10
+        env:
+          PLENARY: .test-deps/plenary.nvim
+        run: $NVIM --clean -u scripts/minimal_init.lua -l scripts/install-parsers.lua --max-jobs=10
 
       - if: inputs.type == 'generate'
         name: Generate and compile parsers
-        run: $NVIM -l ./scripts/install-parsers.lua --generate --max-jobs=2
+        env:
+          PLENARY: .test-deps/plenary.nvim
+        run: $NVIM --clean -u scripts/minimal_init.lua -l scripts/install-parsers.lua --generate --max-jobs=2
 
       - name: Check parsers
         run: $NVIM -l ./scripts/check-parsers.lua

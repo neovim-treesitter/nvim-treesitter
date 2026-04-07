@@ -1,0 +1,10 @@
+name: Bump Parser Version
+
+on:
+  schedule:
+    - cron: "0 8 * * 6"
+  workflow_dispatch:
+
+jobs:
+  bump:
+    uses: neovim-treesitter/.github/.github/workflows/query-bump.yml@main

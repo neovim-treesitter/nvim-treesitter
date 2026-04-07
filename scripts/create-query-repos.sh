@@ -49,6 +49,7 @@ fi
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 QUERIES_DIR="$REPO_ROOT/runtime/queries"
 VALIDATE_TEMPLATE="$REPO_ROOT/scripts/templates/query-validate.yml"
+BUMP_TEMPLATE="$REPO_ROOT/scripts/templates/query-bump.yml"
 README_TEMPLATE="$REPO_ROOT/scripts/templates/query-repo-README.md"
 
 # If no langs provided, discover all dirs under runtime/queries/
@@ -105,9 +106,11 @@ process_lang() {
 
     gh repo clone "${FULL_REPO}" "${TMPDIR}/repo" -- --depth 1 2>/dev/null
     local REPO_DIR="${TMPDIR}/repo"
+    local CHANGED=false
 
-    # Regenerate parser.json, merging with existing to preserve manually-set
-    # fields like `inherits` (pass existing file as second arg to gen-parser-manifest.lua).
+    # ── 1. Regenerate parser.json ──
+    # Merges with existing to preserve manually-set fields like `inherits`.
+    # gen-parser-manifest.lua strips vestigial min_version/max_version.
     local NEW_MANIFEST
     NEW_MANIFEST="$(mktemp)"
     local EXISTING_MANIFEST="${REPO_DIR}/parser.json"
@@ -121,19 +124,68 @@ process_lang() {
       return 3
     fi
 
-    # Skip if unchanged
-    if cmp -s "$NEW_MANIFEST" "${REPO_DIR}/parser.json" 2>/dev/null; then
-      echo "    skip: parser.json unchanged"
-      return 2
+    if ! cmp -s "$NEW_MANIFEST" "${REPO_DIR}/parser.json" 2>/dev/null; then
+      cp "$NEW_MANIFEST" "${REPO_DIR}/parser.json"
+      CHANGED=true
+      echo "    updated: parser.json"
     fi
 
-    cp "$NEW_MANIFEST" "${REPO_DIR}/parser.json"
+    # ── 2. Copy query files ──
+    if [[ -d "$LANG_QUERIES_DIR" ]]; then
+      mkdir -p "${REPO_DIR}/queries"
+      local SCM_FILES=()
+      while IFS= read -r _f; do SCM_FILES+=("$_f"); done < <(find "$LANG_QUERIES_DIR" -maxdepth 1 -name '*.scm' 2>/dev/null)
+      if [[ ${#SCM_FILES[@]} -gt 0 ]]; then
+        cp "${SCM_FILES[@]}" "${REPO_DIR}/queries/"
+        echo "    synced ${#SCM_FILES[@]} query file(s)"
+        CHANGED=true
+      fi
+    fi
 
-    git -C "${REPO_DIR}" add parser.json
-    git -C "${REPO_DIR}" commit -m \
-      "fix: regenerate parser.json (parser_version, generate flags)"
-    git -C "${REPO_DIR}" push
-    echo "    updated: https://github.com/${FULL_REPO}"
+    # ── 3. Copy highlight tests ──
+    local HL_SRC="${REPO_ROOT}/tests/query/highlights/${LANG}"
+    if [[ -d "$HL_SRC" ]]; then
+      mkdir -p "${REPO_DIR}/tests/highlights"
+      cp "$HL_SRC"/* "${REPO_DIR}/tests/highlights/" 2>/dev/null || true
+      local HL_COUNT
+      HL_COUNT=$(find "${REPO_DIR}/tests/highlights" -type f 2>/dev/null | wc -l | tr -d ' ')
+      echo "    copied ${HL_COUNT} highlight test file(s)"
+      CHANGED=true
+    fi
+
+    # ── 4. Copy injection tests ──
+    local INJ_SRC="${REPO_ROOT}/tests/query/injections/${LANG}"
+    if [[ -d "$INJ_SRC" ]]; then
+      mkdir -p "${REPO_DIR}/tests/injections"
+      cp "$INJ_SRC"/* "${REPO_DIR}/tests/injections/" 2>/dev/null || true
+      local INJ_COUNT
+      INJ_COUNT=$(find "${REPO_DIR}/tests/injections" -type f 2>/dev/null | wc -l | tr -d ' ')
+      echo "    copied ${INJ_COUNT} injection test file(s)"
+      CHANGED=true
+    fi
+
+    # ── 5. Sync CI workflows ──
+    mkdir -p "${REPO_DIR}/.github/workflows"
+    if [[ -f "$VALIDATE_TEMPLATE" ]]; then
+      cp "$VALIDATE_TEMPLATE" "${REPO_DIR}/.github/workflows/validate.yml"
+    fi
+    if [[ -f "$BUMP_TEMPLATE" ]]; then
+      cp "$BUMP_TEMPLATE" "${REPO_DIR}/.github/workflows/bump.yml"
+    fi
+    CHANGED=true
+    echo "    synced CI workflows"
+
+    # ── 6. Commit and push if anything changed ──
+    if [[ "$CHANGED" == true ]]; then
+      git -C "${REPO_DIR}" add -A
+      git -C "${REPO_DIR}" commit -m \
+        "fix: update parser.json, queries, and tests from nvim-treesitter"
+      git -C "${REPO_DIR}" push
+      echo "    pushed: https://github.com/${FULL_REPO}"
+    else
+      echo "    skip: nothing changed"
+      return 2
+    fi
     return 0
   fi
 
@@ -184,6 +236,7 @@ process_lang() {
   # 5. CI workflow
   mkdir -p "${REPO_DIR}/.github/workflows"
   cp "${VALIDATE_TEMPLATE}" "${REPO_DIR}/.github/workflows/validate.yml"
+  cp "${BUMP_TEMPLATE}" "${REPO_DIR}/.github/workflows/bump.yml"
 
   # 6. README
   sed "s/{{LANG}}/${LANG}/g" "${README_TEMPLATE}" > "${REPO_DIR}/README.md"

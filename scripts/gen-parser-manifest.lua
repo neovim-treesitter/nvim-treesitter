@@ -80,6 +80,10 @@ end
 -- preserving manually-maintained fields (inherits, etc.).
 local manifest = vim.tbl_extend('force', base, generated)
 
+-- Remove vestigial min_version / max_version that may survive from old parser.json files.
+manifest.min_version = nil
+manifest.max_version = nil
+
 local ok, encoded = pcall(vim.json.encode, manifest)
 if not ok then
   io.stderr:write("JSON encode failed: " .. tostring(encoded) .. "\n")
