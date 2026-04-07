@@ -79,13 +79,15 @@ end
 ---@return string[]  absolute paths
 local function scm_files(query_dir)
   local result = {}
-  if not vim.uv.fs_stat(query_dir) then return result end
+  if not vim.uv.fs_stat(query_dir) then
+    return result
+  end
   for name in vim.fs.dir(query_dir) do
     if name:match('%.scm$') then
       result[#result + 1] = vim.fs.joinpath(query_dir, name)
     end
   end
-  table.sort(result)  -- deterministic order
+  table.sort(result) -- deterministic order
   return result
 end
 
@@ -103,18 +105,24 @@ end
 function M.parse_inherits(scm_path)
   local result = {}
   local content = read_file(scm_path)
-  if not content then return result end
+  if not content then
+    return result
+  end
 
   -- Only inspect the very first non-empty line
   local first_line = content:match('^([^\n]*)')
-  if not first_line then return result end
+  if not first_line then
+    return result
+  end
 
   local list_str = first_line:match(INHERITS_PATTERN)
-  if not list_str then return result end
+  if not list_str then
+    return result
+  end
 
   for item in list_str:gmatch('[^,%s]+') do
     local optional = item:sub(-1) == '?'
-    local lang     = optional and item:sub(1, -2) or item
+    local lang = optional and item:sub(1, -2) or item
     if lang ~= '' then
       result[#result + 1] = { lang = lang, optional = optional }
     end
@@ -138,10 +146,12 @@ end
 ---@param install_dir string  base queries directory  (install_dir/queries/<lang>/)
 function M._merge(child_lang, parent_lang, install_dir)
   local parent_dir = vim.fs.joinpath(install_dir, parent_lang)
-  local child_dir  = vim.fs.joinpath(install_dir, child_lang)
+  local child_dir = vim.fs.joinpath(install_dir, child_lang)
 
   local parent_files = scm_files(parent_dir)
-  if #parent_files == 0 then return end
+  if #parent_files == 0 then
+    return
+  end
 
   -- Ensure the child queries directory exists
   if not vim.uv.fs_stat(child_dir) then
@@ -149,11 +159,13 @@ function M._merge(child_lang, parent_lang, install_dir)
   end
 
   for _, pfile in ipairs(parent_files) do
-    local fname      = vim.fs.basename(pfile)
-    local cfile      = vim.fs.joinpath(child_dir, fname)
+    local fname = vim.fs.basename(pfile)
+    local cfile = vim.fs.joinpath(child_dir, fname)
 
-    local p_content  = read_file(pfile)
-    if not p_content then goto continue end
+    local p_content = read_file(pfile)
+    if not p_content then
+      goto continue
+    end
 
     -- Strip any leading `; inherits:` line from the parent content so that
     -- the merged file does not carry a stale directive.
@@ -167,7 +179,7 @@ function M._merge(child_lang, parent_lang, install_dir)
       end
     end
 
-    local child_content = read_file(cfile)  -- nil if child file doesn't exist yet
+    local child_content = read_file(cfile) -- nil if child file doesn't exist yet
     local merged
 
     if child_content then
@@ -182,7 +194,9 @@ function M._merge(child_lang, parent_lang, install_dir)
 
       merged = p_clean
       -- Ensure a single blank line between parent and child blocks
-      if not p_clean:match('\n%s*$') then merged = merged .. '\n' end
+      if not p_clean:match('\n%s*$') then
+        merged = merged .. '\n'
+      end
       merged = merged .. '\n' .. c_clean
     else
       merged = p_clean
@@ -219,11 +233,11 @@ function M.resolve(lang, install_dir, callback, _visited)
   _visited[lang] = true
 
   local lang_dir = vim.fs.joinpath(install_dir, lang)
-  local files    = scm_files(lang_dir)
+  local files = scm_files(lang_dir)
 
   -- Collect the full set of unique parent languages declared across all files
-  local parents_seen = {}  ---@type table<string, boolean>
-  local parents      = {}  ---@type { lang: string, optional: boolean }[]
+  local parents_seen = {} ---@type table<string, boolean>
+  local parents = {} ---@type { lang: string, optional: boolean }[]
 
   for _, scm_path in ipairs(files) do
     for _, directive in ipairs(M.parse_inherits(scm_path)) do
@@ -260,7 +274,9 @@ function M.resolve(lang, install_dir, callback, _visited)
         vim.notify(
           string.format(
             'nvim-treesitter/queries_resolver: %s inherits from %s, but %s queries are not installed',
-            lang, p.lang, p.lang
+            lang,
+            p.lang,
+            p.lang
           ),
           vim.log.levels.WARN
         )

@@ -18,7 +18,7 @@
 --     }
 --   }
 
-local curl   = require('plenary.curl')
+local curl = require('plenary.curl')
 local config = require('nvim-treesitter.config')
 
 local M = {}
@@ -60,9 +60,13 @@ end
 ---@param lines string[]
 ---@return table?
 local function decode_lines(lines)
-  if #lines == 0 then return nil end
+  if #lines == 0 then
+    return nil
+  end
   local ok, data = pcall(vim.json.decode, table.concat(lines, '\n'))
-  if not ok then return nil end
+  if not ok then
+    return nil
+  end
   data['$schema'] = nil
   return data
 end
@@ -80,7 +84,9 @@ M.loaded = nil
 ---@param lang string
 ---@return table?
 function M.get(lang)
-  if not M.loaded then return nil end
+  if not M.loaded then
+    return nil
+  end
   return M.loaded[lang]
 end
 
@@ -112,35 +118,30 @@ function M.load(callback, opts)
 
   -- ── Fetch a fresh copy ──────────────────────────────────────────────────
   curl.get(REGISTRY_URL, {
-    headers  = { accept = 'application/json' },
-    timeout  = 15000,
+    headers = { accept = 'application/json' },
+    timeout = 15000,
     callback = vim.schedule_wrap(function(response)
       if response.status ~= 200 then
         -- Stale fallback — better than nothing
         local data = decode_lines(vim.fn.readfile(rp))
         if data then
           vim.notify(
-            'nvim-treesitter: registry fetch failed (HTTP ' ..
-            tostring(response.status) .. '), using stale cache',
+            'nvim-treesitter: registry fetch failed (HTTP '
+              .. tostring(response.status)
+              .. '), using stale cache',
             vim.log.levels.WARN
           )
           M.loaded = data
           return callback(data, nil)
         end
-        return callback(
-          nil,
-          'nvim-treesitter: registry fetch failed and no cache available'
-        )
+        return callback(nil, 'nvim-treesitter: registry fetch failed and no cache available')
       end
 
       -- Persist fresh copy + metadata
       local dir = registry_dir()
       vim.fn.mkdir(dir, 'p')
       vim.fn.writefile(vim.split(response.body, '\n'), rp)
-      vim.fn.writefile(
-        { 'return { fetched_at = ' .. os.time() .. ' }' },
-        mp
-      )
+      vim.fn.writefile({ 'return { fetched_at = ' .. os.time() .. ' }' }, mp)
 
       local ok, data = pcall(vim.json.decode, response.body)
       if not ok then

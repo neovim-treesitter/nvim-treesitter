@@ -21,13 +21,13 @@
 --- HTTP: plenary.curl (never raw curl / vim.system for HTTP)
 --- Build: vim.system (tree-sitter CLI)
 
-local fn  = vim.fn
-local fs  = vim.fs
-local uv  = vim.uv
+local fn = vim.fn
+local fs = vim.fs
+local uv = vim.uv
 
-local a      = require('nvim-treesitter.async')
+local a = require('nvim-treesitter.async')
 local config = require('nvim-treesitter.config')
-local log    = require('nvim-treesitter.log')
+local log = require('nvim-treesitter.log')
 
 -- ── async uv helpers ────────────────────────────────────────────────────────
 
@@ -67,7 +67,9 @@ end
 ---@return string? err
 local function rmpath(path)
   local stat = uv.fs_lstat(path)
-  if not stat then return end
+  if not stat then
+    return
+  end
   if stat.type == 'directory' then
     for file in fs.dir(path) do
       rmpath(fs.joinpath(path, file))
@@ -80,14 +82,16 @@ end
 
 -- ── concurrency helpers ──────────────────────────────────────────────────────
 
-local MAX_JOBS       = 100
+local MAX_JOBS = 100
 local INSTALL_TIMEOUT = 60000
 
 ---@async
 ---@param max_jobs integer
 ---@param tasks async.TaskFun[]
 local function join(max_jobs, tasks)
-  if #tasks == 0 then return end
+  if #tasks == 0 then
+    return
+  end
   max_jobs = math.min(max_jobs, #tasks)
   local remaining = { select(max_jobs + 1, unpack(tasks)) }
   local to_go = #tasks
@@ -124,15 +128,24 @@ local function system(cmd, opts)
   local function system_wrap(_cmd, _opts, on_exit)
     local ok, ret = pcall(vim.system, _cmd, _opts, on_exit)
     if not ok then
-      on_exit({ code = 125, signal = 0, stdout = '', stderr = ret --[[@as string]] })
+      on_exit({
+        code = 125,
+        signal = 0,
+        stdout = '',
+        stderr = ret --[[@as string]],
+      })
       return nil
     end
     return ret --[[@as vim.SystemObj]]
   end
   local r = a.await(3, system_wrap, cmd, opts) --[[@as vim.SystemCompleted]]
   a.schedule()
-  if r.stdout and r.stdout ~= '' then log.trace('stdout -> %s', r.stdout) end
-  if r.stderr and r.stderr ~= '' then log.trace('stderr -> %s', r.stderr) end
+  if r.stdout and r.stdout ~= '' then
+    log.trace('stdout -> %s', r.stdout)
+  end
+  if r.stderr and r.stderr ~= '' then
+    log.trace('stderr -> %s', r.stderr)
+  end
   return r
 end
 
@@ -251,7 +264,14 @@ local function do_git_clone(logger, url, ref, output_dir)
   rmpath(output_dir)
   a.schedule()
   local r = system({
-    'git', 'clone', '--depth', '1', '--branch', ref, url, output_dir,
+    'git',
+    'clone',
+    '--depth',
+    '1',
+    '--branch',
+    ref,
+    url,
+    output_dir,
   })
   if r.code > 0 then
     return logger:error('git clone failed: %s', r.stderr)
@@ -269,7 +289,10 @@ local function do_generate(logger, repo, compile_location)
   local from_json = repo.generate_from_json ~= false
   logger:info('Generating parser.c from %s...', from_json and 'grammar.json' or 'grammar.js')
   local r = system({
-    'tree-sitter', 'generate', '--abi', tostring(vim.treesitter.language_version),
+    'tree-sitter',
+    'generate',
+    '--abi',
+    tostring(vim.treesitter.language_version),
     from_json and 'src/grammar.json' or nil,
   }, { cwd = compile_location, env = { TREE_SITTER_JS_RUNTIME = 'native' } })
   if r.code > 0 then
@@ -317,7 +340,9 @@ local function do_link_queries(logger, query_src, query_dir)
   uv_unlink(query_dir)
   local err = uv_symlink(query_src, query_dir, { dir = true, junction = true })
   a.schedule()
-  if err then return logger:error(err) end
+  if err then
+    return logger:error(err)
+  end
 end
 
 ---@async
@@ -328,12 +353,16 @@ end
 local function do_copy_queries(logger, query_src, query_dir)
   rmpath(query_dir)
   local err = uv_mkdir(query_dir, 493)
-  if err then return logger:error(err) end
+  if err then
+    return logger:error(err)
+  end
   for f in fs.dir(query_src) do
     err = uv_copyfile(fs.joinpath(query_src, f), fs.joinpath(query_dir, f))
   end
   a.schedule()
-  if err then return logger:error(err) end
+  if err then
+    return logger:error(err)
+  end
 end
 
 -- ── semver comparison ─────────────────────────────────────────────────────────
@@ -345,8 +374,12 @@ end
 local function parse_semver(ver)
   local s = ver:gsub('^v', '')
   local parts = {}
-  for n in s:gmatch('%d+') do parts[#parts + 1] = tonumber(n) end
-  while #parts < 3 do parts[#parts + 1] = 0 end
+  for n in s:gmatch('%d+') do
+    parts[#parts + 1] = tonumber(n)
+  end
+  while #parts < 3 do
+    parts[#parts + 1] = 0
+  end
   return parts
 end
 
@@ -357,8 +390,12 @@ local function semver_gt(a_ver, b_ver)
   local a_p = parse_semver(a_ver)
   local b_p = parse_semver(b_ver)
   for i = 1, 3 do
-    if a_p[i] > b_p[i] then return true end
-    if a_p[i] < b_p[i] then return false end
+    if a_p[i] > b_p[i] then
+      return true
+    end
+    if a_p[i] < b_p[i] then
+      return false
+    end
   end
   return false
 end
@@ -407,14 +444,18 @@ local downloading = {} ---@type table<string, string|false|nil>
 ---@param opts       InstallOptions
 ---@return string? err
 local function install_one(lang, entry, versions, install_dir, cache_dir, opts)
-  local logger  = log.new('install/' .. lang)
-  local source  = entry.source
-  local stype   = source.type  -- "self_contained" | "external_queries" | "queries_only" | "local"
+  local logger = log.new('install/' .. lang)
+  local source = entry.source
+  local stype = source.type -- "self_contained" | "external_queries" | "queries_only" | "local"
 
-  local need_parser  = (stype == 'self_contained' or stype == 'external_queries' or stype == 'local')
-                         and not versions.skip_parser
-  local need_queries = (stype == 'self_contained' or stype == 'external_queries'
-                          or stype == 'queries_only' or stype == 'local')
+  local need_parser = (stype == 'self_contained' or stype == 'external_queries' or stype == 'local')
+    and not versions.skip_parser
+  local need_queries = (
+    stype == 'self_contained'
+    or stype == 'external_queries'
+    or stype == 'queries_only'
+    or stype == 'local'
+  )
 
   -- Track the remote project_dir so the queries branch can reuse it when
   -- queries_path is set (we must not delete it until after queries are copied).
@@ -425,14 +466,14 @@ local function install_one(lang, entry, versions, install_dir, cache_dir, opts)
   -- is compiled so that parser.json (which lives in the queries repo root) is
   -- available on disk when we need to decide whether to run `tree-sitter
   -- generate`.  We read it here and use it throughout the rest of install_one.
-  local parser_manifest = entry.parser_manifest or {}  ---@type table
+  local parser_manifest = entry.parser_manifest or {} ---@type table
   local queries_project_dir ---@type string?  -- kept alive for copy step below
 
   if need_queries and (stype == 'external_queries' or stype == 'queries_only') then
-    local queries_ref  = versions.latest_queries or 'main'
-    local queries_url  = source.queries_url or source.url
+    local queries_ref = versions.latest_queries or 'main'
+    local queries_url = source.queries_url or source.url
     local project_name = 'tree-sitter-queries-' .. lang
-    local project_dir  = fs.joinpath(cache_dir, project_name)
+    local project_dir = fs.joinpath(cache_dir, project_name)
 
     rmpath(project_dir)
     a.schedule()
@@ -440,10 +481,14 @@ local function install_one(lang, entry, versions, install_dir, cache_dir, opts)
     local turl = tarball_url(queries_url, queries_ref)
     if turl then
       local err = do_download_tarball(logger, turl, project_name, cache_dir, project_dir)
-      if err then return err end
+      if err then
+        return err
+      end
     else
       local err = do_git_clone(logger, queries_url, queries_ref, project_dir)
-      if err then return err end
+      if err then
+        return err
+      end
     end
 
     -- Read parser.json from the queries repo root to get build metadata.
@@ -463,12 +508,18 @@ local function install_one(lang, entry, versions, install_dir, cache_dir, opts)
   -- If parser_version is pinned, that is the install target — no need to
   -- compare against latest.  Only warn when using latest and it is beyond
   -- a declared ceiling (legacy max_version field, kept for back-compat).
-  if not parser_manifest.parser_version and parser_manifest.max_version and versions.latest_parser then
+  if
+    not parser_manifest.parser_version
+    and parser_manifest.max_version
+    and versions.latest_parser
+  then
     if semver_gt(versions.latest_parser, parser_manifest.max_version) then
       vim.notify(
         string.format(
           '[nvim-treesitter] %s: latest parser %s exceeds max_version %s — skipping parser update',
-          lang, versions.latest_parser, parser_manifest.max_version
+          lang,
+          versions.latest_parser,
+          parser_manifest.max_version
         ),
         vim.log.levels.WARN
       )
@@ -479,14 +530,14 @@ local function install_one(lang, entry, versions, install_dir, cache_dir, opts)
 
   -- ── download + build parser ───────────────────────────────────────────────
   if need_parser then
-    local project_name  = 'tree-sitter-' .. lang
+    local project_name = 'tree-sitter-' .. lang
     -- parser_manifest.parser_version pins an exact tag/SHA that the queries
     -- maintainer has verified against; prefer it over whatever happens to be
     -- latest on the parser repo right now.
-    local parser_ref    = parser_manifest.parser_version or versions.latest_parser or 'main'
+    local parser_ref = parser_manifest.parser_version or versions.latest_parser or 'main'
     -- self_contained uses source.url; external_queries uses source.parser_url
-    local parser_url    = source.parser_url or source.url
-    local project_dir   = fs.joinpath(cache_dir, project_name)
+    local parser_url = source.parser_url or source.url
+    local project_dir = fs.joinpath(cache_dir, project_name)
 
     if source.type == 'local' then
       -- local path: compile in place
@@ -497,26 +548,34 @@ local function install_one(lang, entry, versions, install_dir, cache_dir, opts)
       end
       if parser_manifest.generate or parser_manifest.generate_from_json ~= nil then
         local err = do_generate(logger, parser_manifest, compile_loc)
-        if err then return err end
+        if err then
+          return err
+        end
       end
       local err = do_compile(logger, compile_loc)
-      if err then return err end
+      if err then
+        return err
+      end
       local parser_lib = fs.joinpath(compile_loc, 'parser.so')
       local install_loc = fs.joinpath(install_dir, lang) .. '.so'
       err = do_install_parser(logger, parser_lib, install_loc)
-      if err then return err end
+      if err then
+        return err
+      end
     else
       -- remote: tarball or git clone.
       -- When multiple langs share the same parser_url (e.g. markdown monorepo),
       -- download once into a URL-keyed shared dir and let each lang compile
       -- its own parser_location subdirectory from it.
-      local dl_key     = parser_url .. '@' .. parser_ref
+      local dl_key = parser_url .. '@' .. parser_ref
       -- Shared dir is keyed by URL+ref so it is neutral across langs.
       local shared_dir = fs.joinpath(cache_dir, 'shared-' .. vim.fn.sha256(dl_key):sub(1, 12))
 
       if downloading[dl_key] == false then
         -- Another coroutine is downloading — wait for it.
-        local ok = vim.wait(INSTALL_TIMEOUT, function() return downloading[dl_key] ~= false end)
+        local ok = vim.wait(INSTALL_TIMEOUT, function()
+          return downloading[dl_key] ~= false
+        end)
         if not ok or not downloading[dl_key] then
           return logger:error('Timed out waiting for shared download of %s', parser_url)
         end
@@ -530,7 +589,13 @@ local function install_one(lang, entry, versions, install_dir, cache_dir, opts)
         a.schedule()
         local turl = tarball_url(parser_url, parser_ref)
         if turl then
-          local err = do_download_tarball(logger, turl, 'shared-' .. vim.fn.sha256(dl_key):sub(1, 12), cache_dir, shared_dir)
+          local err = do_download_tarball(
+            logger,
+            turl,
+            'shared-' .. vim.fn.sha256(dl_key):sub(1, 12),
+            cache_dir,
+            shared_dir
+          )
           if err then
             downloading[dl_key] = nil
             return err
@@ -542,7 +607,7 @@ local function install_one(lang, entry, versions, install_dir, cache_dir, opts)
             return err
           end
         end
-        downloading[dl_key] = shared_dir  -- signal completion with shared dir path
+        downloading[dl_key] = shared_dir -- signal completion with shared dir path
       end
       -- Use the shared dir (either we downloaded it or another coroutine did).
       project_dir = downloading[dl_key] --[[@as string]]
@@ -559,16 +624,22 @@ local function install_one(lang, entry, versions, install_dir, cache_dir, opts)
       local gen_flags = parser_manifest.generate ~= nil and parser_manifest or source
       if gen_flags.generate or gen_flags.generate_from_json ~= nil then
         local err = do_generate(logger, gen_flags, compile_loc)
-        if err then return err end
+        if err then
+          return err
+        end
       end
 
       local err = do_compile(logger, compile_loc)
-      if err then return err end
+      if err then
+        return err
+      end
 
-      local parser_lib  = fs.joinpath(compile_loc, 'parser.so')
+      local parser_lib = fs.joinpath(compile_loc, 'parser.so')
       local install_loc = fs.joinpath(install_dir, lang) .. '.so'
       err = do_install_parser(logger, parser_lib, install_loc)
-      if err then return err end
+      if err then
+        return err
+      end
 
       -- Shared downloads are never deleted here — other langs may still need them.
       if source.queries_path then
@@ -592,11 +663,12 @@ local function install_one(lang, entry, versions, install_dir, cache_dir, opts)
       end
 
       local err = do_copy_queries(logger, query_src, query_dir)
-      if err then return err end
+      if err then
+        return err
+      end
 
       rmpath(project_dir)
       a.schedule()
-
     elseif source.queries_path or source.queries_dir then
       local base_dir ---@type string
       if source.type == 'local' then
@@ -606,42 +678,47 @@ local function install_one(lang, entry, versions, install_dir, cache_dir, opts)
       end
       -- queries_dir: parent dir whose <lang>/ subdir holds the .scm files.
       -- queries_path: full path to the dir containing .scm files directly.
-      local query_src = source.queries_dir
-        and fs.joinpath(base_dir, source.queries_dir, lang)
-        or  fs.joinpath(base_dir, source.queries_path)
+      local query_src = source.queries_dir and fs.joinpath(base_dir, source.queries_dir, lang)
+        or fs.joinpath(base_dir, source.queries_path)
       logger:debug('Copying queries from %s', query_src)
       local err = do_copy_queries(logger, query_src, query_dir)
-      if err then return err end
+      if err then
+        return err
+      end
 
       if remote_project_dir then
         rmpath(remote_project_dir)
         a.schedule()
         remote_project_dir = nil
       end
-
     else
       -- self_contained: queries ship with parser repo
-      local queries_src = fs.joinpath(
-        require('nvim-treesitter.install').get_package_path('runtime', 'queries', lang)
-      )
+      local queries_src =
+        fs.joinpath(require('nvim-treesitter.install').get_package_path('runtime', 'queries', lang))
       if uv.fs_stat(queries_src) then
         local err = do_link_queries(logger, queries_src, query_dir)
-        if err then return err end
+        if err then
+          return err
+        end
       end
     end
 
     -- ── inheritance resolution ──────────────────────────────────────────────
     a.await(1, function(cb)
-      require('nvim-treesitter.queries_resolver').resolve(lang, config.get_install_dir('queries'), cb)
+      require('nvim-treesitter.queries_resolver').resolve(
+        lang,
+        config.get_install_dir('queries'),
+        cb
+      )
     end)
   end
 
   -- ── write installed state ────────────────────────────────────────────────
   local cache = require('nvim-treesitter.cache')
   cache.set_installed(lang, {
-    type             = stype,
-    parser_version   = (not versions.skip_parser) and versions.latest_parser or nil,
-    queries_version  = versions.latest_queries,
+    type = stype,
+    parser_version = (not versions.skip_parser) and versions.latest_parser or nil,
+    queries_version = versions.latest_queries,
   })
 
   logger:info('Language installed')
@@ -664,14 +741,19 @@ local function install_lang(lang, entry, versions, install_dir, cache_dir, force
   if not force then
     local cache = require('nvim-treesitter.cache')
     local state = cache.get_installed(lang)
-    if state and state.parser_version == versions.latest_parser
-              and state.queries_version == versions.latest_queries then
+    if
+      state
+      and state.parser_version == versions.latest_parser
+      and state.queries_version == versions.latest_queries
+    then
       return true
     end
   end
 
   if installing[lang] then
-    local success = vim.wait(INSTALL_TIMEOUT, function() return not installing[lang] end)
+    local success = vim.wait(INSTALL_TIMEOUT, function()
+      return not installing[lang]
+    end)
     return success
   end
 
@@ -718,20 +800,22 @@ M.install = a.async(function(languages, opts)
     -- Expand 'all' without the registry by intersecting with installed list
     if vim.list_contains(raw_languages, 'all') then
       -- 'all' with install = install everything available; still need registry
-      raw_languages = nil  -- fall through to registry load below
+      raw_languages = nil -- fall through to registry load below
     else
       languages = vim.tbl_filter(function(lang)
         return not vim.list_contains(installed, lang)
       end, raw_languages)
       if #languages == 0 then
-        return true  -- everything already installed
+        return true -- everything already installed
       end
     end
   end
 
   -- 2. Load registry — needed to resolve language names and get source info
   local registry = require('nvim-treesitter.registry')
-  a.await(1, function(cb) registry.load(cb) end)
+  a.await(1, function(cb)
+    registry.load(cb)
+  end)
 
   languages = config.norm_languages(languages)
 
@@ -752,13 +836,15 @@ M.install = a.async(function(languages, opts)
   end
 
   -- 4. Resolve dirs
-  local cache_dir   = fs.normalize(fn.stdpath('cache') --[[@as string]])
+  local cache_dir = fs.normalize(fn.stdpath('cache') --[[@as string]])
   local install_dir = config.get_install_dir('parser')
-  if not uv.fs_stat(cache_dir) then fn.mkdir(cache_dir, 'p') end
+  if not uv.fs_stat(cache_dir) then
+    fn.mkdir(cache_dir, 'p')
+  end
 
   -- 5. Build tasks
   local tasks = {} ---@type async.TaskFun[]
-  local done  = 0
+  local done = 0
   local local_parsers = config.get_local_parsers()
   for _, lang in ipairs(languages) do
     local entry = local_parsers[lang] or registry.get(lang)
@@ -769,7 +855,9 @@ M.install = a.async(function(languages, opts)
       tasks[#tasks + 1] = a.async(--[[@async]] function()
         a.schedule()
         local ok = install_lang(lang, entry, versions, install_dir, cache_dir, opts.force, opts)
-        if ok then done = done + 1 end
+        if ok then
+          done = done + 1
+        end
       end)
     end
   end
@@ -804,24 +892,28 @@ M.update = a.async(function(languages, opts)
   end
 
   -- 1. Load registry (may require a network fetch — notify the user)
-  local registry  = require('nvim-treesitter.registry')
+  local registry = require('nvim-treesitter.registry')
   if not registry.loaded then
     log.info('Fetching parser registry...')
     a.schedule()
   end
-  a.await(1, function(cb) registry.load(cb) end)
+  a.await(1, function(cb)
+    registry.load(cb)
+  end)
 
   -- Only consider already-installed languages for updates
   languages = config.norm_languages(languages, { missing = true })
 
   if #languages == 0 then
-    if opts.summary then log.info('No parsers installed') end
+    if opts.summary then
+      log.info('No parsers installed')
+    end
     return true
   end
 
   -- 2. Load cache and refresh stale version info
   local cache_mod = require('nvim-treesitter.cache')
-  local cache     = cache_mod.load()
+  local cache = cache_mod.load()
 
   local version_mod = require('nvim-treesitter.version')
   local stale = opts.force and languages or cache_mod.stale_langs(cache, languages)
@@ -838,16 +930,24 @@ M.update = a.async(function(languages, opts)
   -- 3. Filter to languages that actually need an update
   local cache_mod2 = require('nvim-treesitter.cache')
   local to_update = vim.tbl_filter(function(lang)
-    local state    = cache_mod2.get_installed(lang)
+    local state = cache_mod2.get_installed(lang)
     local versions = (cache.parsers and cache.parsers[lang]) or {}
-    if not state then return true end  -- not yet installed → install
-    if versions.latest_parser  and versions.latest_parser  ~= state.parser_version  then return true end
-    if versions.latest_queries and versions.latest_queries ~= state.queries_version then return true end
+    if not state then
+      return true
+    end -- not yet installed → install
+    if versions.latest_parser and versions.latest_parser ~= state.parser_version then
+      return true
+    end
+    if versions.latest_queries and versions.latest_queries ~= state.queries_version then
+      return true
+    end
     return false
   end, languages)
 
   if #to_update == 0 then
-    if opts.summary then log.info('All parsers are up-to-date') end
+    if opts.summary then
+      log.info('All parsers are up-to-date')
+    end
     return true
   end
 
@@ -855,14 +955,16 @@ M.update = a.async(function(languages, opts)
   a.schedule()
 
   -- 4. Perform installs (force = true since we already decided updates are needed)
-  local cache_dir   = fs.normalize(fn.stdpath('cache') --[[@as string]])
+  local cache_dir = fs.normalize(fn.stdpath('cache') --[[@as string]])
   local install_dir = config.get_install_dir('parser')
-  if not uv.fs_stat(cache_dir) then fn.mkdir(cache_dir, 'p') end
+  if not uv.fs_stat(cache_dir) then
+    fn.mkdir(cache_dir, 'p')
+  end
 
   local tasks = {} ---@type async.TaskFun[]
-  local done      = 0
-  local finished  = 0
-  local total     = #to_update
+  local done = 0
+  local finished = 0
+  local total = #to_update
   local local_parsers_upd = config.get_local_parsers()
   for _, lang in ipairs(to_update) do
     -- local_parsers entries ARE registry entries — use them directly.
@@ -872,7 +974,9 @@ M.update = a.async(function(languages, opts)
       tasks[#tasks + 1] = a.async(--[[@async]] function()
         a.schedule()
         local ok = install_lang(lang, entry, versions, install_dir, cache_dir, true, opts)
-        if ok then done = done + 1 end
+        if ok then
+          done = done + 1
+        end
         finished = finished + 1
         log.info('[%d/%d] %s %s', finished, total, lang, ok and 'done' or 'FAILED')
       end)
@@ -902,21 +1006,21 @@ M.uninstall = a.async(function(languages, opts)
   opts = opts or {}
   languages = config.norm_languages(languages or 'all', { missing = true })
 
-  local parser_dir  = config.get_install_dir('parser')
-  local query_dir   = config.get_install_dir('queries')
-  local installed   = config.get_installed()
-  local cache_mod   = require('nvim-treesitter.cache')
+  local parser_dir = config.get_install_dir('parser')
+  local query_dir = config.get_install_dir('queries')
+  local installed = config.get_installed()
+  local cache_mod = require('nvim-treesitter.cache')
 
   local tasks = {} ---@type async.TaskFun[]
-  local done  = 0
+  local done = 0
 
   for _, lang in ipairs(languages) do
     local logger = log.new('uninstall/' .. lang)
     if not vim.list_contains(installed, lang) then
       log.warn('Parser for %s is not managed by nvim-treesitter', lang)
     else
-      local parser  = fs.joinpath(parser_dir, lang) .. '.so'
-      local queries = fs.joinpath(query_dir,  lang)
+      local parser = fs.joinpath(parser_dir, lang) .. '.so'
+      local queries = fs.joinpath(query_dir, lang)
 
       tasks[#tasks + 1] = a.async(--[[@async]] function()
         local had_err = false
@@ -974,7 +1078,7 @@ end)
 ---Return a per-language status table.
 ---@return table<string, { installed: boolean, parser_version: string?, queries_version: string?, latest_parser: string?, latest_queries: string?, needs_update: boolean }>
 function M.status()
-  local registry  = require('nvim-treesitter.registry')
+  local registry = require('nvim-treesitter.registry')
   local cache_mod = require('nvim-treesitter.cache')
 
   -- Best-effort synchronous snapshot; full async refresh happens in install/update.
@@ -982,8 +1086,12 @@ function M.status()
     -- Try to load synchronously via pcall; if unavailable, return empty.
     pcall(function()
       local done = false
-      registry.load(function() done = true end)
-      vim.wait(5000, function() return done end)
+      registry.load(function()
+        done = true
+      end)
+      vim.wait(5000, function()
+        return done
+      end)
     end)
   end
 
@@ -1002,27 +1110,24 @@ function M.status()
   end
 
   for lang in pairs(all_langs) do
-    local state    = cache_mod.get_installed(lang)
+    local state = cache_mod.get_installed(lang)
     local versions = (cache.parsers and cache.parsers[lang]) or {}
 
     local installed = state ~= nil
-    local pv   = state and state.parser_version
-    local qv   = state and state.queries_version
-    local lp   = versions.latest_parser
-    local lq   = versions.latest_queries
+    local pv = state and state.parser_version
+    local qv = state and state.queries_version
+    local lp = versions.latest_parser
+    local lq = versions.latest_queries
 
-    local needs = installed and (
-      (lp and lp ~= pv) or
-      (lq and lq ~= qv)
-    ) or false
+    local needs = installed and ((lp and lp ~= pv) or (lq and lq ~= qv)) or false
 
     result[lang] = {
-      installed        = installed,
-      parser_version   = pv,
-      queries_version  = qv,
-      latest_parser    = lp,
-      latest_queries   = lq,
-      needs_update     = needs,
+      installed = installed,
+      parser_version = pv,
+      queries_version = qv,
+      latest_parser = lp,
+      latest_queries = lq,
+      needs_update = needs,
     }
   end
 

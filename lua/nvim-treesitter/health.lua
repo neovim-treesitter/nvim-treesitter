@@ -158,7 +158,9 @@ function M.check()
     end
     health.info(vim.fn.trim(out, ' ', 2))
   end
-  health.start('  Legend: [H]ighlights, [L]ocals, [F]olds, [I]ndents, In[J]ections\n  ✓ present  . missing  x error  ~ queries_only (validated via inherited parser)')
+  health.start(
+    '  Legend: [H]ighlights, [L]ocals, [F]olds, [I]ndents, In[J]ections\n  ✓ present  . missing  x error  ~ queries_only (validated via inherited parser)'
+  )
 
   if #error_collection > 0 then
     health.start('The following errors have been detected in query files:')

@@ -6,8 +6,8 @@ local M = {}
 
 ---@type TSConfig
 local config = {
-  install_dir    = vim.fs.joinpath(vim.fn.stdpath('data') --[[@as string]], 'site'),
-  local_parsers  = {},
+  install_dir = vim.fs.joinpath(vim.fn.stdpath('data') --[[@as string]], 'site'),
+  local_parsers = {},
 }
 
 ---Setup call for users to override configuration configurations.
