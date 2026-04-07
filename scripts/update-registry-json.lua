@@ -15,7 +15,9 @@
 vim.o.rtp = vim.o.rtp .. ',.'
 
 local ORG = 'neovim-treesitter'
-local REPO_ROOT = vim.fn.fnamemodify(debug.getinfo(1, 'S').source:sub(2), ':p:h:h')
+local _info = debug.getinfo(1, 'S')
+---@cast _info {source?:string}
+local REPO_ROOT = vim.fn.fnamemodify((_info.source or ''):sub(2), ':p:h:h')
 local REGISTRY_PATH = REPO_ROOT .. '/../treesitter-parser-registry/registry.json'
 
 -- ---------------------------------------------------------------------------
@@ -32,7 +34,7 @@ local function sh(cmd)
   if result.code ~= 0 then
     return nil
   end
-  return vim.trim(result.stdout)
+  return vim.trim(result.stdout or '')
 end
 
 --- Check if a GitHub repo exists and is non-empty.
@@ -43,10 +45,11 @@ local function repo_exists(full_repo)
   if result.code ~= 0 then
     return false
   end
-  local ok, data = pcall(vim.json.decode, result.stdout)
-  if not ok or not data then
+  local ok, data = pcall(vim.json.decode, result.stdout or '')
+  if not ok or type(data) ~= 'table' then
     return false
   end
+  ---@cast data table
   -- isEmpty = true means it was created but has no content yet — treat as missing
   return data.isEmpty == false
 end
@@ -64,7 +67,7 @@ local function pretty_json(tbl)
     )
     :wait()
   if fmt.code == 0 then
-    return fmt.stdout, nil
+    return assert(fmt.stdout), nil
   end
   return encoded .. '\n', nil
 end
@@ -84,14 +87,16 @@ if not reg_file then
   io.stderr:write('ERROR: Could not open ' .. REGISTRY_PATH .. '\n')
   os.exit(1)
 end
+---@cast reg_file file*
 local reg_raw = reg_file:read('*a')
 reg_file:close()
 
 local ok, registry = pcall(vim.json.decode, reg_raw)
-if not ok then
+if not ok or type(registry) ~= 'table' then
   io.stderr:write('ERROR: Failed to parse registry.json: ' .. tostring(registry) .. '\n')
   os.exit(1)
 end
+---@cast registry table
 
 -- ---------------------------------------------------------------------------
 -- Determine which langs to process
@@ -223,7 +228,8 @@ if count_added > 0 then
     io.stderr:write('ERROR: Could not write ' .. REGISTRY_PATH .. '\n')
     os.exit(1)
   end
-  f:write(json_out)
+  ---@cast f file*
+  f:write(assert(json_out))
   f:close()
   io.write('\nWrote ' .. REGISTRY_PATH .. '\n')
 end

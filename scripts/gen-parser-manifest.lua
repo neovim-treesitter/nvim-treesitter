@@ -28,8 +28,10 @@ if not info then
   io.stderr:write('Unknown language: ' .. lang .. '\n')
   os.exit(1)
 end
+assert(info)
+---@cast info ParserInfo
 
-local install = info.install_info ---@type table?
+local install = info.install_info
 
 local function is_semver(rev)
   return rev ~= nil and rev:match('^v%d+%.%d+') ~= nil
@@ -50,7 +52,8 @@ if existing_path then
 end
 
 -- Build the auto-generated fields (always overwrite from parsers.lua).
-local generated = { lang = lang } ---@type table<string, any>
+---@type table<string, unknown>
+local generated = { lang = lang }
 if not install then
   -- queries_only lang (e.g. ecma — no parser binary)
   generated.url = vim.NIL
@@ -59,6 +62,7 @@ if not install then
   generated.location = vim.NIL
   generated.queries_only = true
 else
+  ---@cast install InstallInfo
   local semver = is_semver(install.revision)
   generated.url = install.url
   generated.semver = semver
@@ -68,9 +72,8 @@ else
   -- generate / generate_from_json: only emit when needed.
   if install.generate then
     generated.generate = true
-    local gfj = (install --[[@as table]]).generate_from_json
-    if gfj ~= nil then
-      generated.generate_from_json = gfj
+    if install.generate_from_json ~= nil then
+      generated.generate_from_json = install.generate_from_json
     end
   else
     -- Explicitly clear if parsers.lua no longer sets generate.
@@ -110,7 +113,7 @@ local fmt = vim
   :wait()
 
 if fmt.code == 0 then
-  io.write(fmt.stdout or '')
+  io.write(assert(fmt.stdout))
 else
   io.write(encoded .. '\n')
 end

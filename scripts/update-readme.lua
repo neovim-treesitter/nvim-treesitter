@@ -2,7 +2,6 @@
 vim.o.rtp = vim.o.rtp .. ',.'
 local util = require('nvim-treesitter.util')
 local parsers = require('nvim-treesitter.parsers')
-local tiers = require('nvim-treesitter.config').tiers
 
 local sorted_parsers = {} ---@type { name: string, parser: ParserInfo }[]
 for k, v in pairs(parsers) do
@@ -13,8 +12,8 @@ table.sort(sorted_parsers, function(a, b)
 end)
 
 local generated_text = [[
-Language | Tier | Queries | Maintainer
--------- |:----:|:-------:| ----------
+Language | Queries | Maintainer
+-------- |:-------:| ----------
 ]]
 local footnotes = ''
 
@@ -42,17 +41,14 @@ for _, v in ipairs(sorted_parsers) do
     footnotes = footnotes .. '[^' .. v.name .. ']: ' .. p.readme_note .. '\n'
   end
 
-  -- tier
-  generated_text = generated_text .. (p.tier and tiers[p.tier] or '') .. ' | '
-
   -- queries
   generated_text = generated_text
     .. '`'
-    .. (vim.uv.fs_stat('runtime/queries/' .. v.name .. '/highlights.scm') and 'H' or ' ')
-    .. (vim.uv.fs_stat('runtime/queries/' .. v.name .. '/folds.scm') and 'F' or ' ')
-    .. (vim.uv.fs_stat('runtime/queries/' .. v.name .. '/indents.scm') and 'I' or ' ')
-    .. (vim.uv.fs_stat('runtime/queries/' .. v.name .. '/injections.scm') and 'J' or ' ')
-    .. (vim.uv.fs_stat('runtime/queries/' .. v.name .. '/locals.scm') and 'L' or ' ')
+    .. (vim.uv.fs_stat('runtime/queries/' .. v.name .. '/highlights.scm') and 'H' or ' ')
+    .. (vim.uv.fs_stat('runtime/queries/' .. v.name .. '/folds.scm') and 'F' or ' ')
+    .. (vim.uv.fs_stat('runtime/queries/' .. v.name .. '/indents.scm') and 'I' or ' ')
+    .. (vim.uv.fs_stat('runtime/queries/' .. v.name .. '/injections.scm') and 'J' or ' ')
+    .. (vim.uv.fs_stat('runtime/queries/' .. v.name .. '/locals.scm') and 'L' or ' ')
     .. '` | '
 
   -- Maintainer

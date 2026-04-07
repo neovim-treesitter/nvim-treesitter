@@ -10,6 +10,11 @@
       ]
     }
   },
+  "workspace": {
+    "library": [
+      ".test-deps/plenary.nvim"
+    ]
+  },
   "diagnostics": {
     "disable": [
       "unnecessary-if",

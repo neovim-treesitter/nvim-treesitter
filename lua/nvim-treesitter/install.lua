@@ -494,8 +494,12 @@ local function install_one(lang, entry, versions, install_dir, cache_dir, opts)
     -- Read parser.json from the queries repo root to get build metadata.
     local manifest_path = fs.joinpath(project_dir, 'parser.json')
     if uv.fs_stat(manifest_path) then
-      local ok, data = pcall(vim.fn.json_decode, table.concat(vim.fn.readfile(manifest_path), '\n'))
+      local ok, data = pcall(
+        vim.fn.json_decode,
+        table.concat(vim.fn.readfile(manifest_path) --[[@as table]], '\n')
+      )
       if ok and type(data) == 'table' then
+        ---@cast data table
         -- Merge with any entry-level manifest (entry-level wins for version bounds).
         parser_manifest = vim.tbl_extend('keep', entry.parser_manifest or {}, data)
       end
@@ -793,10 +797,15 @@ M.install = a.async(function(languages, opts)
 
   -- 1. Without force, skip languages already present on disk — no registry or
   --    network access needed for them.  This keeps startup installs cheap.
+  ---@type string[]?
   local raw_languages
   if not opts.force then
     local installed = config.get_installed()
-    raw_languages = type(languages) == 'string' and { languages } or languages or {}
+    if type(languages) == 'string' then
+      raw_languages = { languages }
+    else
+      raw_languages = languages or {}
+    end
     -- Expand 'all' without the registry by intersecting with installed list
     if vim.list_contains(raw_languages, 'all') then
       -- 'all' with install = install everything available; still need registry

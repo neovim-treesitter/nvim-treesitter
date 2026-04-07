@@ -184,8 +184,14 @@ function M.get_installed(lang)
 end
 
 --- Write the installation state for a language.
+---@class nvim-ts.InstalledState
+---@field type             string
+---@field version          string?
+---@field parser_version   string?
+---@field queries_version  string?
+
 ---@param lang  string
----@param state { type: string, version: string?, parser_version: string?, queries_version: string? }
+---@param state nvim-ts.InstalledState?
 function M.set_installed(lang, state)
   local info_dir = config.get_install_dir('parser-info')
   local path = vim.fs.joinpath(info_dir, lang .. '.lua')

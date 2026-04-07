@@ -14,8 +14,6 @@
 --   gitlab.com  → GitLab REST API
 --   others      → git ls-remote fallback (universal, no API token needed)
 
-local curl = require('plenary.curl')
-
 local M = {}
 
 -- ---------------------------------------------------------------------------
@@ -39,6 +37,7 @@ end
 ---@param headers  table<string,string>?  header key→value pairs
 ---@param callback fun(body: string?, err: string?)
 local function http_get(url, headers, callback)
+  local curl = require('plenary.curl')
   curl.get(url, {
     headers = headers or {},
     timeout = 10000,
@@ -58,7 +57,7 @@ end
 
 --- Parse the latest semver tag from a list of tag objects.
 --- Each object must have a `.name` field. Returns highest vX.Y.Z tag.
----@param tags table[]
+---@param tags any
 ---@return string?
 local function latest_semver(tags)
   local best, best_parts
@@ -92,8 +91,8 @@ end
 -- ---------------------------------------------------------------------------
 
 ---@class HostAdapter
----@field latest_tag   fun(url: string, callback: fun(tag: string?, err: string?))
----@field latest_head  fun(url: string, branch: string?, callback: fun(sha: string?, err: string?))
+---@field latest_tag   fun(url: string, callback: fun(tag: string?, err: string?)): any
+---@field latest_head  fun(url: string, branch: string?, callback: fun(sha: string?, err: string?)): any
 ---@field tarball_url  fun(url: string, ref: string): string?
 ---@field raw_url      fun(url: string, ref: string, path: string): string?
 
@@ -107,7 +106,8 @@ local github = {}
 function github.latest_tag(url, callback)
   local owner, repo = owner_repo(url)
   if not owner then
-    return callback(nil, 'could not parse owner/repo from: ' .. url)
+    callback(nil, 'could not parse owner/repo from: ' .. url)
+    return
   end
 
   -- Try releases endpoint first (reflects official releases with semver tags)
@@ -120,10 +120,12 @@ function github.latest_tag(url, callback)
   http_get(api, headers, function(body, err)
     if body then
       local ok, releases = pcall(vim.json.decode, body)
-      if ok and #releases > 0 then
+      if ok and type(releases) == 'table' and #releases > 0 then
+        ---@cast releases table[]
         local tag = latest_semver(releases)
         if tag then
-          return callback(tag, nil)
+          callback(tag, nil)
+          return
         end
       end
     end
@@ -132,12 +134,15 @@ function github.latest_tag(url, callback)
     local tags_api = string.format('https://api.github.com/repos/%s/%s/tags', owner, repo)
     http_get(tags_api, headers, function(tbody, terr)
       if not tbody then
-        return callback(nil, terr or err)
+        callback(nil, terr or err)
+        return
       end
       local tok, tags = pcall(vim.json.decode, tbody)
-      if not tok then
-        return callback(nil, 'JSON decode failed')
+      if not tok or type(tags) ~= 'table' then
+        callback(nil, 'JSON decode failed')
+        return
       end
+      ---@cast tags table[]
       callback(latest_semver(tags), nil)
     end)
   end)
@@ -146,7 +151,8 @@ end
 function github.latest_head(url, branch, callback)
   local owner, repo = owner_repo(url)
   if not owner then
-    return callback(nil, 'could not parse owner/repo from: ' .. url)
+    callback(nil, 'could not parse owner/repo from: ' .. url)
+    return
   end
 
   local ref = branch or 'HEAD'
@@ -158,10 +164,12 @@ function github.latest_head(url, branch, callback)
 
   http_get(api, headers, function(body, err)
     if not body then
-      return callback(nil, err)
+      callback(nil, err)
+      return
     end
     local ok, data = pcall(vim.json.decode, body)
-    if ok and data.sha then
+    if ok and type(data) == 'table' and data.sha then
+      ---@cast data table
       callback(data.sha, nil)
     else
       callback(nil, 'could not extract SHA from response')
@@ -186,7 +194,8 @@ local gitlab = {}
 function gitlab.latest_tag(url, callback)
   local owner, repo = owner_repo(url)
   if not owner then
-    return callback(nil, 'could not parse: ' .. url)
+    callback(nil, 'could not parse: ' .. url)
+    return
   end
 
   local encoded = vim.uri_encode and vim.uri_encode(owner .. '/' .. repo)
@@ -196,10 +205,12 @@ function gitlab.latest_tag(url, callback)
   http_get(api, { accept = 'application/json' }, function(body, err)
     if body then
       local ok, releases = pcall(vim.json.decode, body)
-      if ok and #releases > 0 then
+      if ok and type(releases) == 'table' and #releases > 0 then
+        ---@cast releases table[]
         local tag = latest_semver(releases)
         if tag then
-          return callback(tag, nil)
+          callback(tag, nil)
+          return
         end
       end
     end
@@ -210,10 +221,16 @@ function gitlab.latest_tag(url, callback)
     )
     http_get(tags_api, {}, function(tbody, terr)
       if not tbody then
-        return callback(nil, terr or err)
+        callback(nil, terr or err)
+        return
       end
       local tok, tags = pcall(vim.json.decode, tbody)
-      callback(tok and latest_semver(tags) or nil, tok and nil or 'decode failed')
+      if not tok or type(tags) ~= 'table' then
+        callback(nil, 'decode failed')
+        return
+      end
+      ---@cast tags table[]
+      callback(latest_semver(tags), nil)
     end)
   end)
 end
@@ -221,7 +238,8 @@ end
 function gitlab.latest_head(url, branch, callback)
   local owner, repo = owner_repo(url)
   if not owner then
-    return callback(nil, 'could not parse: ' .. url)
+    callback(nil, 'could not parse: ' .. url)
+    return
   end
   local encoded = owner .. '%2F' .. repo
   local ref = branch or 'HEAD'
@@ -229,10 +247,16 @@ function gitlab.latest_head(url, branch, callback)
     string.format('https://gitlab.com/api/v4/projects/%s/repository/commits/%s', encoded, ref)
   http_get(api, {}, function(body, err)
     if not body then
-      return callback(nil, err)
+      callback(nil, err)
+      return
     end
     local ok, data = pcall(vim.json.decode, body)
-    callback(ok and data.id or nil, ok and nil or 'decode failed')
+    if ok and type(data) == 'table' then
+      ---@cast data table
+      callback(data.id, nil)
+    else
+      callback(nil, 'decode failed')
+    end
   end)
 end
 
@@ -348,21 +372,29 @@ M.register('codeberg.org', {
   latest_tag = function(url, cb)
     local owner, repo = owner_repo(url)
     if not owner then
-      return cb(nil, 'parse error')
+      cb(nil, 'parse error')
+      return
     end
     local api = string.format('https://codeberg.org/api/v1/repos/%s/%s/tags', owner, repo)
     http_get(api, {}, function(body, err)
       if not body then
-        return cb(nil, err)
+        cb(nil, err)
+        return
       end
       local ok, tags = pcall(vim.json.decode, body)
-      cb(ok and latest_semver(tags) or nil, nil)
+      if not ok or type(tags) ~= 'table' then
+        cb(nil, nil)
+        return
+      end
+      ---@cast tags table[]
+      cb(latest_semver(tags), nil)
     end)
   end,
   latest_head = function(url, branch, cb)
     local owner, repo = owner_repo(url)
     if not owner then
-      return cb(nil, 'parse error')
+      cb(nil, 'parse error')
+      return
     end
     local ref = branch or 'HEAD'
     local api = string.format(
@@ -373,10 +405,16 @@ M.register('codeberg.org', {
     )
     http_get(api, {}, function(body, err)
       if not body then
-        return cb(nil, err)
+        cb(nil, err)
+        return
       end
       local ok, data = pcall(vim.json.decode, body)
-      cb(ok and data[1] and data[1].sha or nil, nil)
+      if not ok or type(data) ~= 'table' then
+        cb(nil, nil)
+        return
+      end
+      ---@cast data table[]
+      cb(data[1] and data[1].sha or nil, nil)
     end)
   end,
   tarball_url = function(url, ref)

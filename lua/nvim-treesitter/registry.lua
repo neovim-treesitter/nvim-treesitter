@@ -18,7 +18,6 @@
 --     }
 --   }
 
-local curl = require('plenary.curl')
 local config = require('nvim-treesitter.config')
 
 local M = {}
@@ -64,9 +63,10 @@ local function decode_lines(lines)
     return nil
   end
   local ok, data = pcall(vim.json.decode, table.concat(lines, '\n'))
-  if not ok then
+  if not ok or type(data) ~= 'table' then
     return nil
   end
+  ---@cast data table
   data['$schema'] = nil
   return data
 end
@@ -117,6 +117,7 @@ function M.load(callback, opts)
   end
 
   -- ── Fetch a fresh copy ──────────────────────────────────────────────────
+  local curl = require('plenary.curl')
   curl.get(REGISTRY_URL, {
     headers = { accept = 'application/json' },
     timeout = 15000,
@@ -144,10 +145,11 @@ function M.load(callback, opts)
       vim.fn.writefile({ 'return { fetched_at = ' .. os.time() .. ' }' }, mp)
 
       local ok, data = pcall(vim.json.decode, response.body)
-      if not ok then
+      if not ok or type(data) ~= 'table' then
         return callback(nil, 'nvim-treesitter: registry JSON decode failed')
       end
 
+      ---@cast data table
       data['$schema'] = nil
       M.loaded = data
       callback(data, nil)

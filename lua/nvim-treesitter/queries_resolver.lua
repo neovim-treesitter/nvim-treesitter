@@ -263,6 +263,9 @@ function M.resolve(lang, install_dir, callback, _visited)
     end
 
     local p = parents[idx]
+    if not p then
+      return callback()
+    end
 
     -- Check whether the parent's query dir actually exists
     local parent_dir = vim.fs.joinpath(install_dir, p.lang)
