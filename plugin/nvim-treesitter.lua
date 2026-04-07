@@ -26,7 +26,9 @@ local api = vim.api
 local function complete_available_parsers(arglead)
   return vim.tbl_filter(
     ---@param v string
-    function(v) return v:find(arglead, 1, true) ~= nil end,
+    function(v)
+      return v:find(arglead, 1, true) ~= nil
+    end,
     require('nvim-treesitter.config').get_available()
   )
 end
@@ -34,7 +36,9 @@ end
 local function complete_installed_parsers(arglead)
   return vim.tbl_filter(
     ---@param v string
-    function(v) return v:find(arglead, 1, true) ~= nil end,
+    function(v)
+      return v:find(arglead, 1, true) ~= nil
+    end,
     require('nvim-treesitter.config').get_installed()
   )
 end
@@ -45,19 +49,19 @@ end
 
 api.nvim_create_user_command('TSInstall', function(args)
   local fargs = args.fargs
-  local bang  = args.bang
+  local bang = args.bang
   vim.schedule(function()
     require('nvim-treesitter.install').install(fargs, {
-      force   = bang,
+      force = bang,
       summary = true,
     })
   end)
 end, {
-  nargs    = '+',
-  bang     = true,
-  bar      = true,
+  nargs = '+',
+  bang = true,
+  bar = true,
   complete = complete_available_parsers,
-  desc     = 'Install treesitter parsers',
+  desc = 'Install treesitter parsers',
 })
 
 -- ── :TSUpdate[!] [{lang...}] ──────────────────────────────────────────────────
@@ -66,19 +70,19 @@ end, {
 
 api.nvim_create_user_command('TSUpdate', function(args)
   local langs = #args.fargs > 0 and args.fargs or nil
-  local bang  = args.bang
+  local bang = args.bang
   vim.schedule(function()
     require('nvim-treesitter.install').update(langs, {
-      force   = bang,
+      force = bang,
       summary = true,
     })
   end)
 end, {
-  nargs    = '*',
-  bang     = true,
-  bar      = true,
+  nargs = '*',
+  bang = true,
+  bar = true,
   complete = complete_installed_parsers,
-  desc     = 'Update installed treesitter parsers',
+  desc = 'Update installed treesitter parsers',
 })
 
 -- ── :TSUninstall {lang...} ────────────────────────────────────────────────────
@@ -89,10 +93,10 @@ api.nvim_create_user_command('TSUninstall', function(args)
     require('nvim-treesitter.install').uninstall(fargs, { summary = true })
   end)
 end, {
-  nargs    = '+',
-  bar      = true,
+  nargs = '+',
+  bar = true,
   complete = complete_installed_parsers,
-  desc     = 'Uninstall treesitter parsers',
+  desc = 'Uninstall treesitter parsers',
 })
 
 -- ── :TSStatus ─────────────────────────────────────────────────────────────────
@@ -106,8 +110,16 @@ api.nvim_create_user_command('TSStatus', function()
   table.sort(langs)
 
   local lines = {
-    string.format('%-20s  %-8s  %-12s  %-12s  %-12s  %-12s  %s',
-      'Language', 'Installed', 'Parser', 'Latest P', 'Queries', 'Latest Q', 'Needs Update'),
+    string.format(
+      '%-20s  %-8s  %-12s  %-12s  %-12s  %-12s  %s',
+      'Language',
+      'Installed',
+      'Parser',
+      'Latest P',
+      'Queries',
+      'Latest Q',
+      'Needs Update'
+    ),
     string.rep('-', 100),
   }
 
@@ -116,12 +128,12 @@ api.nvim_create_user_command('TSStatus', function()
     lines[#lines + 1] = string.format(
       '%-20s  %-8s  %-12s  %-12s  %-12s  %-12s  %s',
       lang,
-      s.installed        and 'yes'  or 'no',
-      s.parser_version   or '-',
-      s.latest_parser    or '-',
-      s.queries_version  or '-',
-      s.latest_queries   or '-',
-      s.needs_update     and 'YES'  or ''
+      s.installed and 'yes' or 'no',
+      s.parser_version or '-',
+      s.latest_parser or '-',
+      s.queries_version or '-',
+      s.latest_queries or '-',
+      s.needs_update and 'YES' or ''
     )
   end
 
@@ -135,8 +147,8 @@ api.nvim_create_user_command('TSStatus', function()
   vim.bo[buf].modifiable = true
   api.nvim_buf_set_lines(buf, 0, -1, false, lines)
   vim.bo[buf].modifiable = false
-  vim.bo[buf].buftype    = 'nofile'
-  vim.bo[buf].filetype   = 'tsinstall'
+  vim.bo[buf].buftype = 'nofile'
+  vim.bo[buf].filetype = 'tsinstall'
 
   -- Open in a split if not already visible
   local win = vim.fn.bufwinid(buf)

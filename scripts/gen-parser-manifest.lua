@@ -11,26 +11,28 @@
 -- generate_from_json, queries_only) overwrite the existing values, while
 -- manually-maintained fields (inherits, and any unknown keys) are preserved.
 
-local lang         = _G.arg and _G.arg[1]
+local lang = _G.arg and _G.arg[1]
 local existing_path = _G.arg and _G.arg[2]
 if not lang then
-  io.stderr:write("Usage: nvim --headless -l scripts/gen-parser-manifest.lua <lang> [existing-parser.json]\n")
+  io.stderr:write(
+    'Usage: nvim --headless -l scripts/gen-parser-manifest.lua <lang> [existing-parser.json]\n'
+  )
   os.exit(1)
 end
 
-vim.o.rtp = vim.o.rtp .. ",."
-local parsers = require("nvim-treesitter.parsers")
+vim.o.rtp = vim.o.rtp .. ',.'
+local parsers = require('nvim-treesitter.parsers')
 
 local info = parsers[lang]
 if not info then
-  io.stderr:write("Unknown language: " .. lang .. "\n")
+  io.stderr:write('Unknown language: ' .. lang .. '\n')
   os.exit(1)
 end
 
 local install = info.install_info
 
 local function is_semver(rev)
-  return rev ~= nil and rev:match("^v%d+%.%d+") ~= nil
+  return rev ~= nil and rev:match('^v%d+%.%d+') ~= nil
 end
 
 -- Load existing manifest if provided (preserves manually-set fields).
@@ -51,18 +53,18 @@ end
 local generated = { lang = lang }
 if not install then
   -- queries_only lang (e.g. ecma — no parser binary)
-  generated.url            = vim.NIL
-  generated.semver         = vim.NIL
+  generated.url = vim.NIL
+  generated.semver = vim.NIL
   generated.parser_version = vim.NIL
-  generated.location       = vim.NIL
-  generated.queries_only   = true
+  generated.location = vim.NIL
+  generated.queries_only = true
 else
   local semver = is_semver(install.revision)
-  generated.url            = install.url
-  generated.semver         = semver
+  generated.url = install.url
+  generated.semver = semver
   -- parser_version: exact git tag or SHA these queries are tested against.
   generated.parser_version = install.revision or vim.NIL
-  generated.location       = install.location or vim.NIL
+  generated.location = install.location or vim.NIL
   -- generate / generate_from_json: only emit when needed.
   if install.generate then
     generated.generate = true
@@ -71,7 +73,7 @@ else
     end
   else
     -- Explicitly clear if parsers.lua no longer sets generate.
-    generated.generate           = nil
+    generated.generate = nil
     generated.generate_from_json = nil
   end
 end
@@ -84,31 +86,32 @@ local manifest = vim.tbl_extend('force', base, generated)
 -- min_version / max_version were replaced by parser_version.
 -- generate / generate_from_json are omitted when not needed.
 -- null location is omitted (means repo root).
-manifest.min_version        = nil
-manifest.max_version        = nil
+manifest.min_version = nil
+manifest.max_version = nil
 if manifest.generate == nil or manifest.generate == vim.NIL or manifest.generate == false then
-  manifest.generate           = nil
+  manifest.generate = nil
   manifest.generate_from_json = nil
 end
-if manifest.location == vim.NIL then manifest.location = nil end
+if manifest.location == vim.NIL then
+  manifest.location = nil
+end
 
 local ok, encoded = pcall(vim.json.encode, manifest)
 if not ok then
-  io.stderr:write("JSON encode failed: " .. tostring(encoded) .. "\n")
+  io.stderr:write('JSON encode failed: ' .. tostring(encoded) .. '\n')
   os.exit(1)
 end
 
 -- Pretty-print: vim.json.encode produces compact JSON; run through a formatter
 -- if python3 is available, otherwise emit compact.
-local fmt = vim.system(
-  { "python3", "-m", "json.tool", "--indent", "2" },
-  { stdin = encoded, text = true }
-):wait()
+local fmt = vim
+  .system({ 'python3', '-m', 'json.tool', '--indent', '2' }, { stdin = encoded, text = true })
+  :wait()
 
 if fmt.code == 0 then
   io.write(fmt.stdout)
 else
-  io.write(encoded .. "\n")
+  io.write(encoded .. '\n')
 end
 
 os.exit(0)

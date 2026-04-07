@@ -6,9 +6,7 @@
 -- Setup is identical to install_spec.lua.
 
 do
-  local repo_root = vim.fn.fnamemodify(
-    debug.getinfo(1, 'S').source:sub(2), ':p:h:h:h'
-  )
+  local repo_root = vim.fn.fnamemodify(debug.getinfo(1, 'S').source:sub(2), ':p:h:h:h')
   vim.opt.rtp:prepend(repo_root .. '/.test-deps/plenary.nvim')
 end
 
@@ -17,7 +15,10 @@ package.loaded['plenary.curl'] = {
     if opts and opts.output then
       vim.fn.mkdir(vim.fn.fnamemodify(opts.output, ':h'), 'p')
       local f = io.open(opts.output, 'w')
-      if f then f:write('fake tarball') f:close() end
+      if f then
+        f:write('fake tarball')
+        f:close()
+      end
     end
     vim.schedule(function()
       if opts and opts.callback then
@@ -40,7 +41,9 @@ end
 
 local function rm_rf(path)
   local stat = vim.uv.fs_lstat(path)
-  if not stat then return end
+  if not stat then
+    return
+  end
   if stat.type == 'directory' then
     for name in vim.fs.dir(path) do
       rm_rf(vim.fs.joinpath(path, name))
@@ -62,7 +65,7 @@ local function write_file(path, content)
   f:close()
 end
 
-local LANG = '_ts_test_lang_lp'  -- distinct LANG for this file to avoid collisions
+local LANG = '_ts_test_lang_lp' -- distinct LANG for this file to avoid collisions
 
 local function make_system_stub()
   return function(cmd, sys_opts, on_exit)
@@ -73,7 +76,10 @@ local function make_system_stub()
     elseif cmd[1] == 'tar' then
       local target_dir
       for i, arg in ipairs(cmd) do
-        if arg == '-C' then target_dir = cmd[i + 1] break end
+        if arg == '-C' then
+          target_dir = cmd[i + 1]
+          break
+        end
       end
       if target_dir then
         local cwd = (sys_opts and sys_opts.cwd) or vim.uv.cwd()
@@ -88,18 +94,26 @@ local function make_system_stub()
     vim.schedule(function()
       done = true
       on_exit({ code = 0, stdout = '', stderr = '' })
-      if close_cb then close_cb() end
+      if close_cb then
+        close_cb()
+      end
     end)
     return {
       close = function(self_or_cb, cb)
-        if type(self_or_cb) == 'function' then cb = self_or_cb end
+        if type(self_or_cb) == 'function' then
+          cb = self_or_cb
+        end
         if done then
-          if cb then vim.schedule(cb) end
+          if cb then
+            vim.schedule(cb)
+          end
         else
           close_cb = cb
         end
       end,
-      is_closing = function() return false end,
+      is_closing = function()
+        return false
+      end,
     }
   end
 end
@@ -110,12 +124,14 @@ local function stub_versions(parser_ver, queries_ver)
     cache.parsers = cache.parsers or {}
     for _, lang in ipairs(langs) do
       cache.parsers[lang] = {
-        latest_parser  = parser_ver,
+        latest_parser = parser_ver,
         latest_queries = queries_ver,
-        checked_at     = os.time(),
+        checked_at = os.time(),
       }
     end
-    vim.schedule(function() on_done(cache) end)
+    vim.schedule(function()
+      on_done(cache)
+    end)
   end
 end
 
@@ -145,17 +161,21 @@ local function setup(ctx)
 
   local registry = require('nvim-treesitter.registry')
   ctx.orig_registry_loaded = registry.loaded
-  ctx.orig_registry_load   = registry.load
-  if not registry.loaded then registry.loaded = {} end
+  ctx.orig_registry_load = registry.load
+  if not registry.loaded then
+    registry.loaded = {}
+  end
   registry.loaded[LANG] = {
     source = {
       type = 'self_contained',
-      url  = 'https://github.com/tree-sitter/tree-sitter-' .. LANG,
+      url = 'https://github.com/tree-sitter/tree-sitter-' .. LANG,
     },
     filetypes = { LANG },
   }
   registry.load = function(cb)
-    vim.schedule(function() cb(registry.loaded, nil) end)
+    vim.schedule(function()
+      cb(registry.loaded, nil)
+    end)
   end
 
   local qr = require('nvim-treesitter.queries_resolver')
@@ -171,8 +191,10 @@ local function teardown(ctx)
   vim.system = ctx.orig_system
 
   local registry = require('nvim-treesitter.registry')
-  if registry.loaded then registry.loaded[LANG] = nil end
-  registry.load   = ctx.orig_registry_load
+  if registry.loaded then
+    registry.loaded[LANG] = nil
+  end
+  registry.load = ctx.orig_registry_load
   registry.loaded = ctx.orig_registry_loaded
 
   local qr = require('nvim-treesitter.queries_resolver')
@@ -194,7 +216,7 @@ end
 -- local_parsers test helpers
 -- ─────────────────────────────────────────────────────────────────────────────
 
-local LOCAL_LANG  = '_ts_local_test_lang'
+local LOCAL_LANG = '_ts_local_test_lang'
 local LOCAL_LANG2 = '_ts_local_test_lang2'
 local LOCAL_LANG3 = '_ts_local_test_lang3'
 local LOCAL_LANG4 = '_ts_local_test_lang4'
@@ -213,7 +235,7 @@ describe('local_parsers type=local', function()
     mkdir_p(local_src_dir)
     local registry = require('nvim-treesitter.registry')
     registry.loaded[LOCAL_LANG] = {
-      source    = { type = 'local', path = local_src_dir, queries_path = 'queries' },
+      source = { type = 'local', path = local_src_dir, queries_path = 'queries' },
       filetypes = { LOCAL_LANG },
     }
     local config = require('nvim-treesitter.config')
@@ -221,8 +243,8 @@ describe('local_parsers type=local', function()
       local_parsers = {
         [LOCAL_LANG] = {
           source = {
-            type         = 'local',
-            path         = local_src_dir,
+            type = 'local',
+            path = local_src_dir,
             queries_path = 'queries',
           },
           filetypes = { LOCAL_LANG },
@@ -237,24 +259,25 @@ describe('local_parsers type=local', function()
     local cache_mod = require('nvim-treesitter.cache')
     cache_mod.set_installed(LOCAL_LANG, nil)
     local registry = require('nvim-treesitter.registry')
-    if registry.loaded then registry.loaded[LOCAL_LANG] = nil end
+    if registry.loaded then
+      registry.loaded[LOCAL_LANG] = nil
+    end
     rm_rf(local_src_dir)
     teardown(ctx)
   end)
 
   it('installs from local path and copies queries; never calls curl', function()
     local curl_calls = 0
-    package.loaded['plenary.curl'] = vim.tbl_extend('force',
-      package.loaded['plenary.curl'], {
-        get = function(_url, opts)
-          curl_calls = curl_calls + 1
-          vim.schedule(function()
-            if opts and opts.callback then
-              opts.callback({ status = 200, body = '' })
-            end
-          end)
-        end,
-      })
+    package.loaded['plenary.curl'] = vim.tbl_extend('force', package.loaded['plenary.curl'], {
+      get = function(_url, opts)
+        curl_calls = curl_calls + 1
+        vim.schedule(function()
+          if opts and opts.callback then
+            opts.callback({ status = 200, body = '' })
+          end
+        end)
+      end,
+    })
 
     local build_calls = 0
     local base_stub = make_system_stub()
@@ -274,13 +297,17 @@ describe('local_parsers type=local', function()
 
     local config = require('nvim-treesitter.config')
     local parser_so = vim.fs.joinpath(config.get_install_dir('parser'), LOCAL_LANG) .. '.so'
-    assert.is_not_nil(vim.uv.fs_stat(parser_so),
-      'parser.so must exist in install_dir after local install')
+    assert.is_not_nil(
+      vim.uv.fs_stat(parser_so),
+      'parser.so must exist in install_dir after local install'
+    )
 
     local query_dir = vim.fs.joinpath(config.get_install_dir('queries'), LOCAL_LANG)
     local highlights = vim.fs.joinpath(query_dir, 'highlights.scm')
-    assert.is_not_nil(vim.uv.fs_stat(highlights),
-      'highlights.scm must be copied to queries dir for type=local')
+    assert.is_not_nil(
+      vim.uv.fs_stat(highlights),
+      'highlights.scm must be copied to queries dir for type=local'
+    )
 
     assert.True(build_calls > 0, 'tree-sitter build must run for type=local')
     eq(0, curl_calls, 'plenary.curl.get must not be called for type=local')
@@ -296,7 +323,11 @@ describe('local_parsers type=self_contained', function()
     setup(ctx)
     local registry = require('nvim-treesitter.registry')
     registry.loaded[LOCAL_LANG2] = {
-      source    = { type = 'self_contained', url = 'https://github.com/fake/tree-sitter-' .. LOCAL_LANG2, queries_path = 'nvim-queries' },
+      source = {
+        type = 'self_contained',
+        url = 'https://github.com/fake/tree-sitter-' .. LOCAL_LANG2,
+        queries_path = 'nvim-queries',
+      },
       filetypes = { LOCAL_LANG2 },
     }
     local config = require('nvim-treesitter.config')
@@ -304,8 +335,8 @@ describe('local_parsers type=self_contained', function()
       local_parsers = {
         [LOCAL_LANG2] = {
           source = {
-            type         = 'self_contained',
-            url          = 'https://github.com/fake/tree-sitter-' .. LOCAL_LANG2,
+            type = 'self_contained',
+            url = 'https://github.com/fake/tree-sitter-' .. LOCAL_LANG2,
             queries_path = 'nvim-queries',
           },
           filetypes = { LOCAL_LANG2 },
@@ -320,7 +351,9 @@ describe('local_parsers type=self_contained', function()
     local cache_mod = require('nvim-treesitter.cache')
     cache_mod.set_installed(LOCAL_LANG2, nil)
     local registry = require('nvim-treesitter.registry')
-    if registry.loaded then registry.loaded[LOCAL_LANG2] = nil end
+    if registry.loaded then
+      registry.loaded[LOCAL_LANG2] = nil
+    end
     teardown(ctx)
   end)
 
@@ -356,12 +389,14 @@ describe('local_parsers type=self_contained', function()
       cache.parsers = cache.parsers or {}
       for _, lang in ipairs(langs) do
         cache.parsers[lang] = {
-          latest_parser  = 'main',
+          latest_parser = 'main',
           latest_queries = 'main',
-          checked_at     = os.time(),
+          checked_at = os.time(),
         }
       end
-      vim.schedule(function() on_done(cache) end)
+      vim.schedule(function()
+        on_done(cache)
+      end)
     end
 
     local install = require('nvim-treesitter.install')
@@ -373,14 +408,14 @@ describe('local_parsers type=self_contained', function()
 
     local config = require('nvim-treesitter.config')
     local parser_so = vim.fs.joinpath(config.get_install_dir('parser'), LOCAL_LANG2) .. '.so'
-    assert.is_not_nil(vim.uv.fs_stat(parser_so),
-      'parser.so must exist in install_dir after self_contained install')
+    assert.is_not_nil(
+      vim.uv.fs_stat(parser_so),
+      'parser.so must exist in install_dir after self_contained install'
+    )
 
-    assert.True(curl_calls > 0,
-      'plenary.curl.get must be called for type=self_contained')
+    assert.True(curl_calls > 0, 'plenary.curl.get must be called for type=self_contained')
 
-    assert.True(build_calls > 0,
-      'tree-sitter build must run for type=self_contained')
+    assert.True(build_calls > 0, 'tree-sitter build must run for type=self_contained')
   end)
 end)
 
@@ -398,7 +433,7 @@ describe('local_parsers overrides registry', function()
     registry.loaded[LOCAL_LANG3] = {
       source = {
         type = 'self_contained',
-        url  = 'https://github.com/registry/tree-sitter-' .. LOCAL_LANG3,
+        url = 'https://github.com/registry/tree-sitter-' .. LOCAL_LANG3,
       },
       filetypes = { LOCAL_LANG3 },
     }
@@ -418,7 +453,9 @@ describe('local_parsers overrides registry', function()
 
   after_each(function()
     local registry = require('nvim-treesitter.registry')
-    if registry.loaded then registry.loaded[LOCAL_LANG3] = nil end
+    if registry.loaded then
+      registry.loaded[LOCAL_LANG3] = nil
+    end
     local config = require('nvim-treesitter.config')
     config.setup({ local_parsers = {} })
     local cache_mod = require('nvim-treesitter.cache')
@@ -455,9 +492,12 @@ describe('local_parsers overrides registry', function()
     version_mod.refresh_all = function(_reg, langs, cache, on_done)
       cache.parsers = cache.parsers or {}
       for _, lang in ipairs(langs) do
-        cache.parsers[lang] = { latest_parser = 'main', latest_queries = 'main', checked_at = os.time() }
+        cache.parsers[lang] =
+          { latest_parser = 'main', latest_queries = 'main', checked_at = os.time() }
       end
-      vim.schedule(function() on_done(cache) end)
+      vim.schedule(function()
+        on_done(cache)
+      end)
     end
 
     local install = require('nvim-treesitter.install')
@@ -467,8 +507,7 @@ describe('local_parsers overrides registry', function()
 
     assert.True(ok, 'install should succeed when local_parsers overrides registry')
 
-    eq(0, curl_calls,
-      'plenary.curl.get must not be called when local_parsers entry is type=local')
+    eq(0, curl_calls, 'plenary.curl.get must not be called when local_parsers entry is type=local')
 
     local used_local_path = false
     for _, call in ipairs(system_calls) do
@@ -478,8 +517,10 @@ describe('local_parsers overrides registry', function()
         end
       end
     end
-    assert.True(used_local_path,
-      'tree-sitter build must be invoked with the local path as cwd, not the registry URL')
+    assert.True(
+      used_local_path,
+      'tree-sitter build must be invoked with the local path as cwd, not the registry URL'
+    )
   end)
 end)
 
@@ -494,7 +535,7 @@ describe('local_parsers lang in get_available', function()
     config.setup({
       local_parsers = {
         [LOCAL_LANG4] = {
-          source    = { type = 'local', path = '/tmp/fake-' .. LOCAL_LANG4 },
+          source = { type = 'local', path = '/tmp/fake-' .. LOCAL_LANG4 },
           filetypes = { LOCAL_LANG4 },
         },
       },
@@ -517,7 +558,9 @@ describe('local_parsers lang in get_available', function()
 
     parsers_mod[LOCAL_LANG4] = saved
 
-    assert.True(vim.list_contains(available, LOCAL_LANG4),
-      "get_available() must include '" .. LOCAL_LANG4 .. "' when it is in local_parsers")
+    assert.True(
+      vim.list_contains(available, LOCAL_LANG4),
+      "get_available() must include '" .. LOCAL_LANG4 .. "' when it is in local_parsers"
+    )
   end)
 end)
