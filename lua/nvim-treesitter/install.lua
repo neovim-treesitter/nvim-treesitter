@@ -553,9 +553,12 @@ local function install_one(lang, entry, versions, install_dir, cache_dir, opts)
         compile_loc = fs.joinpath(compile_loc, location)
       end
 
-      -- generate parser.c from grammar.js / grammar.json if parser.json says so
-      if parser_manifest.generate or parser_manifest.generate_from_json ~= nil then
-        local err = do_generate(logger, parser_manifest, compile_loc)
+      -- generate parser.c from grammar.js / grammar.json if needed.
+      -- For external_queries: flags come from parser.json (parser_manifest).
+      -- For self_contained: flags come from the registry source entry directly.
+      local gen_flags = parser_manifest.generate ~= nil and parser_manifest or source
+      if gen_flags.generate or gen_flags.generate_from_json ~= nil then
+        local err = do_generate(logger, gen_flags, compile_loc)
         if err then return err end
       end
 
@@ -594,14 +597,18 @@ local function install_one(lang, entry, versions, install_dir, cache_dir, opts)
       rmpath(project_dir)
       a.schedule()
 
-    elseif source.queries_path then
+    elseif source.queries_path or source.queries_dir then
       local base_dir ---@type string
       if source.type == 'local' then
         base_dir = fs.normalize(source.path or '')
       else
         base_dir = remote_project_dir or fs.joinpath(cache_dir, 'tree-sitter-' .. lang)
       end
-      local query_src = fs.joinpath(base_dir, source.queries_path)
+      -- queries_dir: parent dir whose <lang>/ subdir holds the .scm files.
+      -- queries_path: full path to the dir containing .scm files directly.
+      local query_src = source.queries_dir
+        and fs.joinpath(base_dir, source.queries_dir, lang)
+        or  fs.joinpath(base_dir, source.queries_path)
       logger:debug('Copying queries from %s', query_src)
       local err = do_copy_queries(logger, query_src, query_dir)
       if err then return err end
