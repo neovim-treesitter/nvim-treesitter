@@ -103,13 +103,19 @@ process_lang() {
       return 2
     fi
 
-    git clone --depth 1 "https://github.com/${FULL_REPO}.git" "${TMPDIR}/repo" 2>/dev/null
+    gh repo clone "${FULL_REPO}" "${TMPDIR}/repo" -- --depth 1 2>/dev/null
     local REPO_DIR="${TMPDIR}/repo"
 
-    # Regenerate parser.json
+    # Regenerate parser.json, merging with existing to preserve manually-set
+    # fields like `inherits` (pass existing file as second arg to gen-parser-manifest.lua).
     local NEW_MANIFEST
     NEW_MANIFEST="$(mktemp)"
-    if ! nvim --headless -l "${REPO_ROOT}/scripts/gen-parser-manifest.lua" "${LANG}" \
+    local EXISTING_MANIFEST="${REPO_DIR}/parser.json"
+    local MERGE_ARG=""
+    if [[ -f "$EXISTING_MANIFEST" ]]; then
+      MERGE_ARG="$EXISTING_MANIFEST"
+    fi
+    if ! nvim --headless -l "${REPO_ROOT}/scripts/gen-parser-manifest.lua" "${LANG}" ${MERGE_ARG:+"$MERGE_ARG"} \
          > "$NEW_MANIFEST" 2>/dev/null; then
       echo "    WARN: gen-parser-manifest.lua failed for ${LANG} — skipping"
       return 3
