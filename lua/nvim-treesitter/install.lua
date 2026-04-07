@@ -389,6 +389,15 @@ end
 
 -- ── per-language install implementation ──────────────────────────────────────
 
+-- URL-keyed download lock: maps a parser_url to the project_dir it was
+-- downloaded into.  When two languages share the same parser_url (e.g.
+-- markdown + markdown_inline both use tree-sitter-grammars/tree-sitter-markdown)
+-- the second coroutine waits for the first to finish, then reuses the result.
+local downloading = {} ---@type table<string, string|false|nil>
+-- nil   = not started
+-- false = in progress (another coroutine is downloading)
+-- string = completed; value is the project_dir that was produced
+
 ---@async
 ---@param lang       string
 ---@param entry      table   registry entry  (source, filetypes, requires, …)
@@ -447,6 +456,10 @@ local function install_one(lang, entry, versions, install_dir, cache_dir, opts)
       if location then
         compile_loc = fs.joinpath(compile_loc, location)
       end
+      if source.generate or source.generate_from_json ~= nil then
+        local err = do_generate(logger, source, compile_loc)
+        if err then return err end
+      end
       local err = do_compile(logger, compile_loc)
       if err then return err end
       local parser_lib = fs.joinpath(compile_loc, 'parser.so')
@@ -454,21 +467,50 @@ local function install_one(lang, entry, versions, install_dir, cache_dir, opts)
       err = do_install_parser(logger, parser_lib, install_loc)
       if err then return err end
     else
-      -- remote: tarball or git clone
-      local turl = tarball_url(parser_url, parser_ref)
-      if turl then
-        local err = do_download_tarball(logger, turl, project_name, cache_dir, project_dir)
-        if err then return err end
-      else
-        local err = do_git_clone(logger, parser_url, parser_ref, project_dir)
-        if err then return err end
+      -- remote: tarball or git clone.
+      -- Deduplicate concurrent downloads of the same URL (e.g. markdown monorepo).
+      local dl_key = parser_url .. '@' .. parser_ref
+      if downloading[dl_key] == false then
+        -- Another coroutine is downloading this URL — wait for it.
+        local ok = vim.wait(INSTALL_TIMEOUT, function() return downloading[dl_key] ~= false end)
+        if not ok or not downloading[dl_key] then
+          return logger:error('Timed out waiting for shared download of %s', parser_url)
+        end
+        -- Reuse the project_dir the other coroutine produced.
+        project_dir = downloading[dl_key] --[[@as string]]
+      elseif not downloading[dl_key] then
+        -- We are the first — claim the lock and download.
+        downloading[dl_key] = false
+        local turl = tarball_url(parser_url, parser_ref)
+        if turl then
+          local err = do_download_tarball(logger, turl, project_name, cache_dir, project_dir)
+          if err then
+            downloading[dl_key] = nil  -- release so waiters don't hang
+            return err
+          end
+        else
+          local err = do_git_clone(logger, parser_url, parser_ref, project_dir)
+          if err then
+            downloading[dl_key] = nil
+            return err
+          end
+        end
+        downloading[dl_key] = project_dir  -- signal completion
       end
+      -- else: downloading[dl_key] is already a string — another lang already
+      -- finished downloading this URL; reuse its project_dir directly.
 
       local compile_loc = project_dir
       -- self_contained uses source.location; external_queries uses source.parser_location
       local location = source.parser_location or source.location
       if location then
         compile_loc = fs.joinpath(compile_loc, location)
+      end
+
+      -- generate parser.c from grammar.js / grammar.json if the source requires it
+      if source.generate or source.generate_from_json ~= nil then
+        local err = do_generate(logger, source, compile_loc)
+        if err then return err end
       end
 
       local err = do_compile(logger, compile_loc)
@@ -480,9 +522,12 @@ local function install_one(lang, entry, versions, install_dir, cache_dir, opts)
       if err then return err end
 
       -- Keep project_dir alive if queries_path is set; we need it for queries.
+      -- For shared downloads (monorepo) never delete — the other lang may still need it.
+      local is_shared = downloading[dl_key] ~= nil and downloading[dl_key] ~= false
+                        and downloading[dl_key] == project_dir
       if source.queries_path then
         remote_project_dir = project_dir
-      else
+      elseif not is_shared then
         rmpath(project_dir)
         a.schedule()
       end
@@ -789,7 +834,9 @@ M.update = a.async(function(languages, opts)
   if not uv.fs_stat(cache_dir) then fn.mkdir(cache_dir, 'p') end
 
   local tasks = {} ---@type async.TaskFun[]
-  local done  = 0
+  local done      = 0
+  local finished  = 0
+  local total     = #to_update
   local local_parsers_upd = config.get_local_parsers()
   for _, lang in ipairs(to_update) do
     -- local_parsers entries ARE registry entries — use them directly.
@@ -800,6 +847,8 @@ M.update = a.async(function(languages, opts)
         a.schedule()
         local ok = install_lang(lang, entry, versions, install_dir, cache_dir, true, opts)
         if ok then done = done + 1 end
+        finished = finished + 1
+        log.info('[%d/%d] %s %s', finished, total, lang, ok and 'done' or 'FAILED')
       end)
     end
   end
