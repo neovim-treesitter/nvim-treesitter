@@ -261,7 +261,7 @@ function generic.latest_tag(url, callback)
   vim.system(
     { 'git', '-c', 'versionsort.suffix=-',
       'ls-remote', '--tags', '--refs', '--sort=v:refname', url },
-    { text = true },
+    { text = true, timeout = 10000 },
     vim.schedule_wrap(function(r)
       if r.code ~= 0 then return callback(nil, r.stderr) end
       local lines = vim.split(vim.trim(r.stdout), '\n')
@@ -277,7 +277,7 @@ end
 function generic.latest_head(url, branch, callback)
   local cmd = { 'git', 'ls-remote', url }
   if branch then cmd[#cmd + 1] = 'refs/heads/' .. branch end
-  vim.system(cmd, { text = true }, vim.schedule_wrap(function(r)
+  vim.system(cmd, { text = true, timeout = 10000 }, vim.schedule_wrap(function(r)
     if r.code ~= 0 then return callback(nil, r.stderr) end
     local lines  = vim.split(vim.trim(r.stdout), '\n')
     local target = branch and ('refs/heads/' .. branch) or 'HEAD'
