@@ -80,9 +80,17 @@ end
 -- preserving manually-maintained fields (inherits, etc.).
 local manifest = vim.tbl_extend('force', base, generated)
 
--- Remove vestigial min_version / max_version that may survive from old parser.json files.
-manifest.min_version = nil
-manifest.max_version = nil
+-- Remove vestigial / null fields that should not appear in the output.
+-- min_version / max_version were replaced by parser_version.
+-- generate / generate_from_json are omitted when not needed.
+-- null location is omitted (means repo root).
+manifest.min_version        = nil
+manifest.max_version        = nil
+if manifest.generate == nil or manifest.generate == vim.NIL or manifest.generate == false then
+  manifest.generate           = nil
+  manifest.generate_from_json = nil
+end
+if manifest.location == vim.NIL then manifest.location = nil end
 
 local ok, encoded = pcall(vim.json.encode, manifest)
 if not ok then
