@@ -157,3 +157,22 @@ api.nvim_create_user_command('TSLog', function()
 end, {
   desc = 'View nvim-treesitter log messages',
 })
+
+-- ── :TSRegistryUpdate ─────────────────────────────────────────────────────────
+-- Force a fresh fetch of the remote registry JSON, bypassing the 7-day TTL.
+
+api.nvim_create_user_command('TSRegistryUpdate', function()
+  vim.schedule(function()
+    local registry = require('nvim-treesitter.registry')
+    vim.notify('[nvim-treesitter] Fetching registry...', vim.log.levels.INFO)
+    registry.load(function(_, err)
+      if err then
+        vim.notify('[nvim-treesitter] Registry update failed: ' .. err, vim.log.levels.ERROR)
+      else
+        vim.notify('[nvim-treesitter] Registry updated', vim.log.levels.INFO)
+      end
+    end, { force = true })
+  end)
+end, {
+  desc = 'Force refresh the treesitter parser registry',
+})

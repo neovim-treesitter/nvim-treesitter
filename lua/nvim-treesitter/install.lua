@@ -638,20 +638,41 @@ end
 M.install = a.async(function(languages, opts)
   opts = opts or {}
 
-  -- 1. Load registry first — norm_languages/get_available depends on registry.loaded
+  -- 1. Without force, skip languages already present on disk — no registry or
+  --    network access needed for them.  This keeps startup installs cheap.
+  local raw_languages
+  if not opts.force then
+    local installed = config.get_installed()
+    raw_languages = type(languages) == 'string' and { languages } or languages or {}
+    -- Expand 'all' without the registry by intersecting with installed list
+    if vim.list_contains(raw_languages, 'all') then
+      -- 'all' with install = install everything available; still need registry
+      raw_languages = nil  -- fall through to registry load below
+    else
+      languages = vim.tbl_filter(function(lang)
+        return not vim.list_contains(installed, lang)
+      end, raw_languages)
+      if #languages == 0 then
+        return true  -- everything already installed
+      end
+    end
+  end
+
+  -- 2. Load registry — needed to resolve language names and get source info
   local registry = require('nvim-treesitter.registry')
   a.await(1, function(cb) registry.load(cb) end)
 
   languages = config.norm_languages(languages)
 
-  -- 2. Load cache
+  if #languages == 0 then
+    return true
+  end
+
+  -- 3. Load cache and refresh stale version info for missing languages only
   local cache_mod = require('nvim-treesitter.cache')
   local cache = cache_mod.load()
 
-  -- 3. Find stale cache entries for requested langs
   local stale = cache_mod.stale_langs(cache, languages)
-
-  -- 4. Refresh stale version info
   if #stale > 0 then
     local version_mod = require('nvim-treesitter.version')
     a.await(1, function(cb)
@@ -659,18 +680,16 @@ M.install = a.async(function(languages, opts)
     end)
   end
 
-  -- 5. Resolve dirs
+  -- 4. Resolve dirs
   local cache_dir   = fs.normalize(fn.stdpath('cache') --[[@as string]])
   local install_dir = config.get_install_dir('parser')
   if not uv.fs_stat(cache_dir) then fn.mkdir(cache_dir, 'p') end
 
-  -- 6. Build tasks
+  -- 5. Build tasks
   local tasks = {} ---@type async.TaskFun[]
   local done  = 0
   local local_parsers = config.get_local_parsers()
   for _, lang in ipairs(languages) do
-    -- Prefer a local_parsers entry over the registry so the user can override.
-    -- local_parsers entries ARE registry entries — use them directly.
     local entry = local_parsers[lang] or registry.get(lang)
     if not entry then
       log.warn('No registry entry for %s, skipping', lang)
@@ -686,10 +705,10 @@ M.install = a.async(function(languages, opts)
 
   join(opts.max_jobs or MAX_JOBS, tasks)
 
-  -- 7. Save updated cache
+  -- 6. Save updated cache
   cache_mod.save(cache)
 
-  if #tasks > 1 then
+  if #tasks > 0 then
     a.schedule()
     if opts.summary then
       log.info('Installed %d/%d languages', done, #tasks)
