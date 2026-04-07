@@ -60,12 +60,104 @@ jobs:
 
       - name: Run highlight tests
         if: ${{ matrix.os != 'windows-latest' }}
-        run: make tests TESTS=query NVIM_BIN=$NVIM
+        continue-on-error: true
+        run: |
+          make tests TESTS=query NVIM_BIN=$NVIM 2>&1 | tee /tmp/test-query.log
+          echo "${PIPESTATUS[0]}" > /tmp/test-query.exit
 
       - name: Run indents tests
         if: ${{ matrix.os != 'windows-latest' }}
-        run: make tests TESTS=indent NVIM_BIN=$NVIM
+        continue-on-error: true
+        run: |
+          make tests TESTS=indent NVIM_BIN=$NVIM 2>&1 | tee /tmp/test-indent.log
+          echo "${PIPESTATUS[0]}" > /tmp/test-indent.exit
 
       - name: Run installer tests
         if: ${{ matrix.os != 'windows-latest' }}
-        run: make tests TESTS=install NVIM_BIN=$NVIM
+        continue-on-error: true
+        run: |
+          make tests TESTS=install NVIM_BIN=$NVIM 2>&1 | tee /tmp/test-install.log
+          echo "${PIPESTATUS[0]}" > /tmp/test-install.exit
+
+      - name: Summarize test results
+        if: ${{ matrix.os != 'windows-latest' && always() }}
+        run: |
+          # Strip ANSI escape sequences from a string
+          strip_ansi() { sed 's/\x1b\[[0-9;]*m//g'; }
+
+          # Parse a plentest log and append rows to the summary table.
+          # Usage: parse_log <suite-name> <log-file>
+          parse_log() {
+            local suite="$1"
+            local log="$2"
+            [[ -f "$log" ]] || return
+
+            # plentest prints lines like:
+            #   <ESC>[32mSuccess<ESC>[0m || <ESC>[0m  describe-block test-name
+            #   <ESC>[31mFail<ESC>[0m    || <ESC>[0m  describe-block test-name
+            # We strip ANSI codes then match on the literal words Success/Fail.
+            local prev_status=""
+            local prev_name=""
+            while IFS= read -r raw_line; do
+              local line
+              line=$(printf '%s' "$raw_line" | strip_ansi)
+
+              if [[ "$line" =~ ^(Success|Fail)[[:space:]]*\|\|[[:space:]]*(.*) ]]; then
+                # Flush the previous entry (no error line follows Success)
+                if [[ -n "$prev_status" ]]; then
+                  echo "| $suite | $prev_name | $prev_status | |" >> "$GITHUB_STEP_SUMMARY"
+                fi
+                prev_status="${BASH_REMATCH[1]}"
+                prev_name="${BASH_REMATCH[2]}"
+              elif [[ -n "$prev_status" && "$prev_status" == "Fail" && -n "$line" && ! "$line" =~ ^=+ ]]; then
+                # First non-empty, non-header line after a Fail is the error message.
+                # Trim leading whitespace, escape pipes so the table stays valid.
+                local err
+                err=$(printf '%s' "$line" | sed 's/^[[:space:]]*//' | sed 's/|/\\|/g')
+                echo "| $suite | $prev_name | :x: Fail | \`$err\` |" >> "$GITHUB_STEP_SUMMARY"
+                prev_status=""
+                prev_name=""
+              else
+                # Flush a dangling entry (e.g. Success with no following error)
+                if [[ -n "$prev_status" ]]; then
+                  local icon=":white_check_mark: Pass"
+                  [[ "$prev_status" == "Fail" ]] && icon=":x: Fail"
+                  echo "| $suite | $prev_name | $icon | |" >> "$GITHUB_STEP_SUMMARY"
+                  prev_status=""
+                  prev_name=""
+                fi
+              fi
+            done < "$log"
+
+            # Flush any final pending entry
+            if [[ -n "$prev_status" ]]; then
+              local icon=":white_check_mark: Pass"
+              [[ "$prev_status" == "Fail" ]] && icon=":x: Fail"
+              echo "| $suite | $prev_name | $icon | |" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          }
+
+          {
+            echo "## Test Results"
+            echo ""
+            echo "| Suite | Test | Status | Error |"
+            echo "|-------|------|--------|-------|"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          parse_log "query"   /tmp/test-query.log
+          parse_log "indent"  /tmp/test-indent.log
+          parse_log "install" /tmp/test-install.log
+
+      - name: Check test results
+        if: ${{ matrix.os != 'windows-latest' && always() }}
+        run: |
+          failed=0
+          for f in /tmp/test-query.exit /tmp/test-indent.exit /tmp/test-install.exit; do
+            [[ -f "$f" ]] || continue
+            code=$(cat "$f")
+            if [[ "$code" != "0" ]]; then
+              echo "::error::Test suite $(basename "$f" .exit) failed with exit code $code"
+              failed=1
+            fi
+          done
+          exit $failed

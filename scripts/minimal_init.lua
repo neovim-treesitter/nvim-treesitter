@@ -9,6 +9,9 @@ prepend_rtp(os.getenv('PLENARY'))
 prepend_rtp(os.getenv('PLENTEST'))
 
 vim.o.rtp = vim.fn.stdpath('data') .. '/site,' .. vim.o.rtp
+-- Ensure the nvim-treesitter repo itself is in rtp so that plugin/ and lua/
+-- modules are resolvable when tests are run from the repo root.
+vim.opt.rtp:prepend(vim.fn.getcwd())
 vim.cmd.runtime({ 'plugin/query_predicates.lua', bang = true })
 vim.cmd.runtime({ 'plugin/filetypes.lua', bang = true })
 

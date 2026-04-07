@@ -18,19 +18,12 @@ set -euo pipefail
 ORG="neovim-treesitter"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PARENT_DIR="$(dirname "$REPO_ROOT")"
+VALIDATE_TEMPLATE="${REPO_ROOT}/scripts/templates/query-validate.yml"
 
-THIN_CALLER_CONTENT='name: Validate Queries
-
-on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-
-jobs:
-  validate:
-    uses: neovim-treesitter/.github/.github/workflows/query-validate.yml@main
-'
+if [[ ! -f "$VALIDATE_TEMPLATE" ]]; then
+  echo "ERROR: template not found at $VALIDATE_TEMPLATE" >&2
+  exit 1
+fi
 
 # Use org-specific token if provided
 if [[ -n "${NVIM_TS_GH_TOKEN:-}" ]]; then
@@ -80,22 +73,20 @@ process_lang() {
     git clone --quiet "git@github.com:${FULL_REPO}.git" "$REPO_DIR"
   fi
 
-  # Check current workflow content — skip if already the thin caller
+  # Check current workflow content — skip if already matches the template exactly
   local WORKFLOW_FILE="${REPO_DIR}/.github/workflows/validate.yml"
-  if [[ -f "$WORKFLOW_FILE" ]]; then
-    if grep -q 'neovim-treesitter/.github/.github/workflows/query-validate.yml' "$WORKFLOW_FILE"; then
-      echo "    skip: already using reusable workflow"
-      return 2
-    fi
+  if [[ -f "$WORKFLOW_FILE" ]] && cmp -s "$VALIDATE_TEMPLATE" "$WORKFLOW_FILE"; then
+    echo "    skip: already up to date"
+    return 2
   fi
 
-  # Write thin caller
+  # Write from template
   mkdir -p "${REPO_DIR}/.github/workflows"
-  printf '%s' "$THIN_CALLER_CONTENT" > "$WORKFLOW_FILE"
+  cp "$VALIDATE_TEMPLATE" "$WORKFLOW_FILE"
 
   # Commit and push
   git -C "$REPO_DIR" add ".github/workflows/validate.yml"
-  git -C "$REPO_DIR" commit --quiet -m "ci: use reusable query-validate workflow"
+  git -C "$REPO_DIR" commit --quiet -m "ci: sync validate.yml from nvim-treesitter template"
   git -C "$REPO_DIR" push --quiet origin main
 
   echo "    done"

@@ -74,10 +74,15 @@ end
 -- Additionally register any filetype mappings declared in registry entries.
 -- Registry loading is asynchronous; mappings that duplicate the static table
 -- above are harmless (register is idempotent).
-require('nvim-treesitter.registry').load(function(reg)
-  for lang, entry in pairs(reg) do
-    if entry.filetypes and #entry.filetypes > 0 then
-      vim.treesitter.language.register(lang, entry.filetypes)
+-- Use pcall so that a missing registry module (e.g. plenary not in rtp yet)
+-- does not prevent the static registrations above from taking effect.
+local ok, registry = pcall(require, 'nvim-treesitter.registry')
+if ok then
+  registry.load(function(reg)
+    for lang, entry in pairs(reg) do
+      if entry.filetypes and #entry.filetypes > 0 then
+        vim.treesitter.language.register(lang, entry.filetypes)
+      end
     end
-  end
-end)
+  end)
+end

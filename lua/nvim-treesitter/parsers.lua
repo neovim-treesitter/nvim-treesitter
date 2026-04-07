@@ -867,6 +867,7 @@ return {
     install_info = {
       revision = '1a7ded90288189746c54861ac144ede97df95081',
       url = 'https://github.com/slackhq/tree-sitter-hack',
+      generate = true, -- parser.c was generated at ABI 13; nvim 0.11+ requires ABI ≥14
     },
     tier = 2,
   },
@@ -2310,6 +2311,7 @@ return {
       revision = '1c6db04effbcd7773c826bded9783cbc3061bd55',
       url = 'https://github.com/vrischmann/tree-sitter-templ',
     },
+    requires = { 'go' },
     maintainers = { '@vrischmann' },
     tier = 2,
   },

@@ -32,6 +32,20 @@
   (#not-lua-match? @_no_type_lang "%stype%s*=")
   (#set! injection.language "javascript"))
 
+; <script type="text/ecmascript"> or <script type="application/ecmascript">
+; ecmascript is an alias for javascript but the injection pipeline uses the raw
+; string as a language name, bypassing filetype alias resolution.
+((script_element
+  (start_tag
+    (attribute
+      (attribute_name) @_attr
+      (#eq? @_attr "type")
+      (quoted_attribute_value
+        (attribute_value) @_type)))
+  (raw_text) @injection.content)
+  (#lua-match? @_type "ecmascript")
+  (#set! injection.language "javascript"))
+
 ; <script type="foo/bar">
 (script_element
   (start_tag

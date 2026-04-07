@@ -6,9 +6,9 @@
 #
 # Modes:
 #   (default)  Create new repos only. Skip repos that already exist and are populated.
-#   --update   Update existing repos: regenerate parser.json (picking up parser_version,
-#              generate flags etc. from gen-parser-manifest.lua) and commit if changed.
-#              Does not recreate repos, copy queries, or overwrite CI/README/CODEOWNERS.
+#   --update   Update existing repos: regenerate parser.json, sync query .scm files,
+#              sync highlight/injection tests, and sync CI workflows. Commits and pushes
+#              if anything changed. Does not recreate repos or overwrite README/CODEOWNERS.
 #
 # Requires: gh (GitHub CLI, authenticated), git, nvim, jq
 # Run from the nvim-treesitter repo root.
@@ -166,26 +166,34 @@ process_lang() {
 
     # ── 5. Sync CI workflows ──
     mkdir -p "${REPO_DIR}/.github/workflows"
+    local WF_CHANGED=false
     if [[ -f "$VALIDATE_TEMPLATE" ]]; then
-      cp "$VALIDATE_TEMPLATE" "${REPO_DIR}/.github/workflows/validate.yml"
+      if ! cmp -s "$VALIDATE_TEMPLATE" "${REPO_DIR}/.github/workflows/validate.yml" 2>/dev/null; then
+        cp "$VALIDATE_TEMPLATE" "${REPO_DIR}/.github/workflows/validate.yml"
+        WF_CHANGED=true
+      fi
     fi
     if [[ -f "$BUMP_TEMPLATE" ]]; then
-      cp "$BUMP_TEMPLATE" "${REPO_DIR}/.github/workflows/bump.yml"
+      if ! cmp -s "$BUMP_TEMPLATE" "${REPO_DIR}/.github/workflows/bump.yml" 2>/dev/null; then
+        cp "$BUMP_TEMPLATE" "${REPO_DIR}/.github/workflows/bump.yml"
+        WF_CHANGED=true
+      fi
     fi
-    CHANGED=true
-    echo "    synced CI workflows"
+    if [[ "$WF_CHANGED" == true ]]; then
+      CHANGED=true
+      echo "    synced CI workflows"
+    fi
 
     # ── 6. Commit and push if anything changed ──
-    if [[ "$CHANGED" == true ]]; then
-      git -C "${REPO_DIR}" add -A
-      git -C "${REPO_DIR}" commit -m \
-        "fix: update parser.json, queries, and tests from nvim-treesitter"
-      git -C "${REPO_DIR}" push
-      echo "    pushed: https://github.com/${FULL_REPO}"
-    else
+    git -C "${REPO_DIR}" add -A
+    if git -C "${REPO_DIR}" diff --cached --quiet; then
       echo "    skip: nothing changed"
       return 2
     fi
+    git -C "${REPO_DIR}" commit -m \
+      "fix: update parser.json, queries, and tests from nvim-treesitter"
+    git -C "${REPO_DIR}" push
+    echo "    pushed: https://github.com/${FULL_REPO}"
     return 0
   fi
 
