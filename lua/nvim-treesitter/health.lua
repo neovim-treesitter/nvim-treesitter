@@ -129,11 +129,23 @@ function M.check()
     local entry = registry.loaded and registry.loaded[lang]
     local out = lang .. string.rep(' ', 22 - #lang)
     if entry and entry.source then
-      for _, query_group in pairs(M.bundled_queries) do
-        local status, err = query_status(lang, query_group)
-        out = out .. status .. ' '
-        if err then
-          table.insert(error_collection, { lang, query_group, err })
+      if entry.source.type == 'queries_only' then
+        -- queries_only langs have no parser of their own; their queries are used via
+        -- "; inherits:" by other langs (e.g. ecma → javascript).  Validation via
+        -- tsq.get() would always fail with "No parser for language".  Show '~' to
+        -- indicate "queries present, validated through inherited parser" rather than
+        -- collecting false errors.
+        for _, query_group in pairs(M.bundled_queries) do
+          local files = tsq.get_files(lang, query_group)
+          out = out .. (#files > 0 and '~' or '.') .. ' '
+        end
+      else
+        for _, query_group in pairs(M.bundled_queries) do
+          local status, err = query_status(lang, query_group)
+          out = out .. status .. ' '
+          if err then
+            table.insert(error_collection, { lang, query_group, err })
+          end
         end
       end
     end
@@ -146,7 +158,7 @@ function M.check()
     end
     health.info(vim.fn.trim(out, ' ', 2))
   end
-  health.start('  Legend: [H]ighlights, [L]ocals, [F]olds, [I]ndents, In[J]ections')
+  health.start('  Legend: [H]ighlights, [L]ocals, [F]olds, [I]ndents, In[J]ections\n  ✓ present  . missing  x error  ~ queries_only (validated via inherited parser)')
 
   if #error_collection > 0 then
     health.start('The following errors have been detected in query files:')
