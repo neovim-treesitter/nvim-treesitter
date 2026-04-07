@@ -82,12 +82,12 @@ local parsers = require('nvim-treesitter.parsers')
 -- Load existing registry.json
 -- ---------------------------------------------------------------------------
 
-local reg_file = io.open(REGISTRY_PATH, 'r')
-if not reg_file then
+local reg_file_or_nil = io.open(REGISTRY_PATH, 'r')
+if not reg_file_or_nil then
   io.stderr:write('ERROR: Could not open ' .. REGISTRY_PATH .. '\n')
   os.exit(1)
 end
----@cast reg_file file*
+local reg_file = reg_file_or_nil
 local reg_raw = reg_file:read('*a')
 reg_file:close()
 
@@ -223,12 +223,12 @@ if count_added > 0 then
     os.exit(1)
   end
 
-  local f = io.open(REGISTRY_PATH, 'w')
-  if not f then
+  local f_or_nil = io.open(REGISTRY_PATH, 'w')
+  if not f_or_nil then
     io.stderr:write('ERROR: Could not write ' .. REGISTRY_PATH .. '\n')
     os.exit(1)
   end
-  ---@cast f file*
+  local f = f_or_nil
   f:write(assert(json_out))
   f:close()
   io.write('\nWrote ' .. REGISTRY_PATH .. '\n')

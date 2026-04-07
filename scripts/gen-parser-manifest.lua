@@ -52,7 +52,17 @@ if existing_path then
 end
 
 -- Build the auto-generated fields (always overwrite from parsers.lua).
----@type table<string, unknown>
+---@class ManifestRecord
+---@field lang             string
+---@field url              string|userdata|nil
+---@field semver           boolean|userdata|nil
+---@field parser_version   string|userdata|nil
+---@field location         string|userdata|nil
+---@field queries_only     boolean?
+---@field generate         boolean?
+---@field generate_from_json boolean?
+
+---@type ManifestRecord
 local generated = { lang = lang }
 if not install then
   -- queries_only lang (e.g. ecma — no parser binary)
