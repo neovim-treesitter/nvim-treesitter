@@ -96,6 +96,11 @@ end
 -- preserving manually-maintained fields (inherits, etc.).
 local manifest = vim.tbl_extend('force', base, generated)
 
+-- inject_deps: languages whose parsers must be present for injection tests.
+if info.inject_deps and #info.inject_deps > 0 then
+  manifest.inject_deps = info.inject_deps
+end
+
 -- Remove vestigial / null fields that should not appear in the output.
 -- min_version / max_version were replaced by parser_version.
 -- generate / generate_from_json are omitted when not needed.

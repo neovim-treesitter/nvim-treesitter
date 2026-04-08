@@ -100,6 +100,17 @@ plenary: $(PLENARY)
 $(PLENARY):
 	git clone --filter=blob:none https://github.com/nvim-lua/plenary.nvim $(PLENARY)
 
+# Isolated parser install directory — blown away by `make clean`.
+# Both install-parsers.lua and minimal_init.lua read this env var so that
+# parsers never touch the user's real ~/.local/share/nvim.
+export TS_INSTALL_DIR ?= $(CURDIR)/$(DEPDIR)/parsers
+
+# Install all parsers into the isolated test directory.
+.PHONY: install-parsers
+install-parsers: $(NVIM) $(PLENARY)
+	PLENARY=$(PLENARY) $(NVIM_BIN) --headless --clean -u scripts/minimal_init.lua \
+		-l scripts/install-parsers.lua -- --max-jobs=8
+
 # actual test targets
 
 .PHONY: lua
@@ -131,6 +142,7 @@ checkquery: $(TSQUERYLS)
 .PHONY: tests
 tests: $(NVIM) $(HLASSERT) $(PLENTEST) $(PLENARY)
 	HLASSERT=$(HLASSERT)/highlight-assertions PLENTEST=$(PLENTEST) PLENARY=$(PLENARY) \
+		TS_INSTALL_DIR=$(TS_INSTALL_DIR) \
 		$(NVIM_BIN) --headless --clean -u scripts/minimal_init.lua \
 		-c "lua require('plentest').test_directory('tests/$(TESTS)', { minimal_init = './scripts/minimal_init.lua' })"
 

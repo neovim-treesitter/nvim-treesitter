@@ -305,6 +305,7 @@ return {
     tier = 2,
   },
   cuda = {
+    inject_deps = { 'cuda' },
     install_info = {
       revision = '48b066f334f4cf2174e05a50218ce2ed98b6fd01',
       url = 'https://github.com/tree-sitter-grammars/tree-sitter-cuda',
@@ -394,6 +395,7 @@ return {
     tier = 2,
   },
   dockerfile = {
+    inject_deps = { 'bash' },
     install_info = {
       revision = '971acdd908568b4531b0ba28a445bf0bb720aba5',
       url = 'https://github.com/camdencheek/tree-sitter-dockerfile',
@@ -444,6 +446,7 @@ return {
     tier = 2,
   },
   ecma = {
+    inject_deps = { 'html' },
     maintainers = { '@steelsojka' },
     readme_note = 'queries required by javascript, typescript, tsx, qmljs',
     tier = 2,
@@ -966,6 +969,7 @@ return {
     tier = 2,
   },
   html = {
+    inject_deps = { 'css', 'graphql', 'javascript', 'json', 'markdown', 'typescript' },
     install_info = {
       revision = '73a3947324f6efddf9e17c0ea58d454843590cc0',
       url = 'https://github.com/tree-sitter/tree-sitter-html',
@@ -988,6 +992,7 @@ return {
     tier = 2,
   },
   http = {
+    inject_deps = { 'javascript', 'lua' },
     install_info = {
       revision = 'db8b4398de90b6d0b6c780aba96aaa2cd8e9202c',
       url = 'https://github.com/rest-nvim/tree-sitter-http',
@@ -1704,6 +1709,7 @@ return {
     tier = 2,
   },
   promql = {
+    inject_deps = { 'regex' },
     install_info = {
       revision = '77625d78eebc3ffc44d114a07b2f348dff3061b0',
       url = 'https://github.com/MichaHoffmann/tree-sitter-promql',
@@ -2224,6 +2230,7 @@ return {
     tier = 2,
   },
   svelte = {
+    inject_deps = { 'css', 'javascript', 'scss', 'typescript' },
     install_info = {
       revision = 'ae5199db47757f785e43a14b332118a5474de1a2',
       url = 'https://github.com/tree-sitter-grammars/tree-sitter-svelte',
@@ -2572,6 +2579,7 @@ return {
     tier = 2,
   },
   vue = {
+    inject_deps = { 'css', 'javascript', 'pug', 'scss', 'tsx', 'typescript' },
     install_info = {
       revision = 'ce8011a414fdf8091f4e4071752efc376f4afb08',
       url = 'https://github.com/tree-sitter-grammars/tree-sitter-vue',
@@ -2649,6 +2657,7 @@ return {
     tier = 1,
   },
   yaml = {
+    inject_deps = { 'bash', 'promql' },
     install_info = {
       revision = '4463985dfccc640f3d6991e3396a2047610cf5f8',
       url = 'https://github.com/tree-sitter-grammars/tree-sitter-yaml',

@@ -645,7 +645,7 @@ local function install_one(lang, entry, versions, install_dir, cache_dir, _opts)
       end
 
       -- Shared downloads are never deleted here — other langs may still need them.
-      if source.queries_path then
+      if source.queries_path or source.queries_dir then
         remote_project_dir = project_dir
       end
     end

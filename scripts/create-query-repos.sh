@@ -2,13 +2,18 @@
 # create-query-repos.sh — extract nvim-treesitter query files into per-language GitHub repos
 #
 # Usage:
-#   ./scripts/create-query-repos.sh [--update] <org> [lang ...]
+#   ./scripts/create-query-repos.sh [--update] [--local-dir <path>] <org> [lang ...]
 #
 # Modes:
 #   (default)  Create new repos only. Skip repos that already exist and are populated.
 #   --update   Update existing repos: regenerate parser.json, sync query .scm files,
 #              sync highlight/injection tests, and sync CI workflows. Commits and pushes
 #              if anything changed. Does not recreate repos or overwrite README/CODEOWNERS.
+#
+# Options:
+#   --local-dir <path>   Mirror each repo into <path>/nvim-treesitter-queries-<lang>/.
+#                        Clones if missing, pulls after push if already present.
+#                        Default: none (GH-only).
 #
 # Requires: gh (GitHub CLI, authenticated), git, nvim, jq
 # Run from the nvim-treesitter repo root.
@@ -28,18 +33,38 @@ set -euo pipefail
 # Argument handling
 # ---------------------------------------------------------------------------
 UPDATE_MODE=false
-if [[ "${1:-}" == "--update" ]]; then
-  UPDATE_MODE=true
-  shift
-fi
+LOCAL_DIR=""
+while [[ "${1:-}" == --* ]]; do
+  case "$1" in
+    --update)
+      UPDATE_MODE=true
+      shift
+      ;;
+    --local-dir)
+      shift
+      LOCAL_DIR="${1:?--local-dir requires a path argument}"
+      shift
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      exit 1
+      ;;
+  esac
+done
 
 if [[ $# -lt 1 ]]; then
-  echo "Usage: $0 [--update] <org> [lang ...]" >&2
+  echo "Usage: $0 [--update] [--local-dir <path>] <org> [lang ...]" >&2
   exit 1
 fi
 
 ORG="$1"
 shift
+
+# Resolve LOCAL_DIR to absolute path
+if [[ -n "$LOCAL_DIR" ]]; then
+  mkdir -p "$LOCAL_DIR"
+  LOCAL_DIR="$(cd "$LOCAL_DIR" && pwd)"
+fi
 
 # Use org-specific token if provided, without affecting the caller's GH_TOKEN
 if [[ -n "${NVIM_TS_GH_TOKEN:-}" ]]; then
@@ -78,6 +103,23 @@ COUNT_CREATED=0
 COUNT_SKIPPED=0
 COUNT_FAILED=0
 FAILED_LANGS=()
+
+# ---------------------------------------------------------------------------
+# Local mirror helper
+# ---------------------------------------------------------------------------
+mirror_to_local() {
+  local FULL_REPO="$1"
+  local REPO_NAME="$2"
+  [[ -z "$LOCAL_DIR" ]] && return 0
+  local LOCAL_REPO="${LOCAL_DIR}/${REPO_NAME}"
+  if [[ -d "${LOCAL_REPO}/.git" ]]; then
+    echo "    local: pulling ${LOCAL_REPO}"
+    git -C "$LOCAL_REPO" pull --ff-only 2>/dev/null || git -C "$LOCAL_REPO" reset --hard origin/main 2>/dev/null || true
+  else
+    echo "    local: cloning into ${LOCAL_REPO}"
+    gh repo clone "${FULL_REPO}" "$LOCAL_REPO" -- --depth 1 2>/dev/null
+  fi
+}
 
 # ---------------------------------------------------------------------------
 # Per-language processing
@@ -188,12 +230,14 @@ process_lang() {
     git -C "${REPO_DIR}" add -A
     if git -C "${REPO_DIR}" diff --cached --quiet; then
       echo "    skip: nothing changed"
+      mirror_to_local "${FULL_REPO}" "${REPO_NAME}"
       return 2
     fi
     git -C "${REPO_DIR}" commit -m \
       "fix: update parser.json, queries, and tests from nvim-treesitter"
     git -C "${REPO_DIR}" push
     echo "    pushed: https://github.com/${FULL_REPO}"
+    mirror_to_local "${FULL_REPO}" "${REPO_NAME}"
     return 0
   fi
 
@@ -263,6 +307,7 @@ CODEOWNERS
   git -C "${REPO_DIR}" push --follow-tags
 
   echo "    done: https://github.com/${FULL_REPO}"
+  mirror_to_local "${FULL_REPO}" "${REPO_NAME}"
   return 0
 }
 

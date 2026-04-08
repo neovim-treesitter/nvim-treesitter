@@ -1,6 +1,12 @@
 #!/usr/bin/env -S nvim -l
 vim.o.rtp = vim.o.rtp .. ',.'
 
+-- Use the same isolated install dir as minimal_init.lua so parsers land in a
+-- disposable location (default: <repo>/.test-deps/parsers).
+local ts_install_dir = os.getenv('TS_INSTALL_DIR')
+  or vim.fs.joinpath(vim.fn.getcwd(), '.test-deps', 'parsers')
+require('nvim-treesitter').setup({ install_dir = ts_install_dir })
+
 local generate = false
 local update = false
 local max_jobs = nil ---@type number?
@@ -12,6 +18,8 @@ for i = 1, #_G.arg do
     update = true
   elseif _G.arg[i]:find('^%-%-max%-jobs') then
     max_jobs = tonumber(_G.arg[i]:match('=(%d+)'))
+  elseif _G.arg[i] == '--' then
+    -- ignore separator
   else
     parsers[#parsers + 1] = _G.arg[i] ---@type string
   end

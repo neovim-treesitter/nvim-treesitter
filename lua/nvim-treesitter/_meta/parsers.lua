@@ -38,6 +38,10 @@ error('Cannot require a meta file')
 ---List of other languages to install (e.g., if queries inherit from them)
 ---@field requires? string[]
 ---
+---Parsers that must be present for injection tests to pass
+---(i.e., languages injected by this grammar's injections.scm)
+---@field inject_deps? string[]
+---
 ---Language support tier, maps to "stable", "unstable", "unmaintained", "unsupported"
 ---@field tier integer
 ---
