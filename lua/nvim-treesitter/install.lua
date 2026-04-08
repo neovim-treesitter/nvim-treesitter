@@ -853,39 +853,104 @@ M.install = a.async(function(languages, opts)
     fn.mkdir(cache_dir, 'p')
   end
 
-  -- 5. Build tasks
-  local tasks = {} ---@type async.TaskFun[]
+  -- 5. Build tasks, respecting `requires` dependency ordering.
+  --    Languages are grouped into topological levels so that dependencies
+  --    (e.g. ecma, jsx) are fully installed before dependents (javascript).
   local done = 0
+  local total = 0
   local local_parsers = config.get_local_parsers()
+  local parsers = require('nvim-treesitter.parsers')
+
+  -- Map each language to its entry and versions
+  local lang_set = {} ---@type table<string, boolean>
+  local entries = {} ---@type table<string, table>
+  local version_map = {} ---@type table<string, table>
   for _, lang in ipairs(languages) do
     local entry = local_parsers[lang] or registry.get(lang)
     if not entry then
       log.warn('No registry entry for %s, skipping', lang)
     else
-      local versions = (cache.parsers and cache.parsers[lang]) or {}
-      tasks[#tasks + 1] = a.async(--[[@async]] function()
-        a.schedule()
-        local ok = install_lang(lang, entry, versions, install_dir, cache_dir, opts.force, opts)
-        if ok then
-          done = done + 1
-        end
-      end)
+      lang_set[lang] = true
+      entries[lang] = entry
+      version_map[lang] = (cache.parsers and cache.parsers[lang]) or {}
     end
   end
 
-  join(opts.max_jobs or MAX_JOBS, tasks)
+  -- Topological sort into levels: level 0 = no in-set deps, level N = depends on level N-1
+  local level_of = {} ---@type table<string, integer>
+  local function get_level(lang, visiting)
+    if level_of[lang] ~= nil then
+      return level_of[lang]
+    end
+    visiting = visiting or {}
+    if visiting[lang] then
+      level_of[lang] = 0 -- break cycle
+      return 0
+    end
+    visiting[lang] = true
+    local max_dep = -1
+    local info = parsers[lang]
+    if info and info.requires then
+      for _, dep in ipairs(info.requires) do
+        if lang_set[dep] then
+          max_dep = math.max(max_dep, get_level(dep, visiting))
+        end
+      end
+    end
+    level_of[lang] = max_dep + 1
+    return level_of[lang]
+  end
+
+  local levels = {} ---@type table<integer, string[]>
+  local max_level = 0
+  for lang in pairs(entries) do
+    local lvl = get_level(lang)
+    max_level = math.max(max_level, lvl)
+    if not levels[lvl] then
+      levels[lvl] = {}
+    end
+    levels[lvl][#levels[lvl] + 1] = lang
+  end
+
+  -- Install each level in parallel, but wait for each level to complete
+  -- before starting the next (ensures dependencies are on disk).
+  for lvl = 0, max_level do
+    local batch = levels[lvl]
+    if batch then
+      local tasks = {} ---@type async.TaskFun[]
+      for _, lang in ipairs(batch) do
+        total = total + 1
+        tasks[#tasks + 1] = a.async(--[[@async]] function()
+          a.schedule()
+          local ok = install_lang(
+            lang,
+            entries[lang],
+            version_map[lang],
+            install_dir,
+            cache_dir,
+            opts.force,
+            opts
+          )
+          if ok then
+            done = done + 1
+          end
+        end)
+      end
+      join(opts.max_jobs or MAX_JOBS, tasks)
+    end
+  end
 
   -- 6. Save updated cache
   cache_mod.save(cache)
 
-  if #tasks > 0 then
+  if total > 0 then
     a.schedule()
     if opts.summary then
-      log.info('Installed %d/%d languages', done, #tasks)
+      log.info('Installed %d/%d languages', done, total)
     end
   end
 
-  return done == #tasks
+  return done == total
 end)
 
 -- ── M.update ──────────────────────────────────────────────────────────────────
