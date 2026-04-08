@@ -447,6 +447,7 @@ return {
   },
   ecma = {
     host_parser = {
+      lang = 'javascript',
       url = 'https://github.com/tree-sitter/tree-sitter-javascript',
     },
     inject_deps = { 'html' },
@@ -983,6 +984,7 @@ return {
   },
   html_tags = {
     host_parser = {
+      lang = 'html',
       url = 'https://github.com/tree-sitter/tree-sitter-html',
     },
     inject_deps = { 'css', 'javascript', 'json', 'regex' },
@@ -1167,6 +1169,7 @@ return {
   },
   jsx = {
     host_parser = {
+      lang = 'javascript',
       url = 'https://github.com/tree-sitter/tree-sitter-javascript',
     },
     inject_deps = { 'css' },

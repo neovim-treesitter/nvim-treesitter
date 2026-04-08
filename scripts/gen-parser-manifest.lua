@@ -107,6 +107,7 @@ end
 -- host_parser: for queries_only languages, the parser providing the grammar.
 if info.host_parser then
   manifest.host_parser = {
+    lang = info.host_parser.lang,
     url = info.host_parser.url,
   }
   if info.host_parser.parser_version then
