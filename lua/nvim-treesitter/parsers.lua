@@ -446,6 +446,9 @@ return {
     tier = 2,
   },
   ecma = {
+    host_parser = {
+      url = 'https://github.com/tree-sitter/tree-sitter-javascript',
+    },
     inject_deps = { 'html' },
     maintainers = { '@steelsojka' },
     readme_note = 'queries required by javascript, typescript, tsx, qmljs',
@@ -979,6 +982,10 @@ return {
     tier = 2,
   },
   html_tags = {
+    host_parser = {
+      url = 'https://github.com/tree-sitter/tree-sitter-html',
+    },
+    inject_deps = { 'css', 'javascript', 'json', 'regex' },
     maintainers = { '@TravonteD' },
     readme_note = 'queries required by html, astro, vue, svelte',
     tier = 2,
@@ -1159,6 +1166,10 @@ return {
     tier = 2,
   },
   jsx = {
+    host_parser = {
+      url = 'https://github.com/tree-sitter/tree-sitter-javascript',
+    },
+    inject_deps = { 'css' },
     maintainers = { '@steelsojka' },
     readme_note = 'queries required by javascript, tsx',
     tier = 2,

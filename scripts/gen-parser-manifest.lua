@@ -99,6 +99,25 @@ local manifest = vim.tbl_extend('force', base, generated)
 -- inject_deps: languages whose parsers must be present for injection tests.
 if info.inject_deps and #info.inject_deps > 0 then
   manifest.inject_deps = info.inject_deps
+else
+  -- Clear stale inject_deps from existing manifest if no longer in parsers.lua.
+  manifest.inject_deps = nil
+end
+
+-- host_parser: for queries_only languages, the parser providing the grammar.
+if info.host_parser then
+  manifest.host_parser = {
+    url = info.host_parser.url,
+  }
+  if info.host_parser.parser_version then
+    manifest.host_parser.parser_version = info.host_parser.parser_version
+  end
+  if info.host_parser.location then
+    manifest.host_parser.location = info.host_parser.location
+  end
+else
+  -- Clear stale host_parser from existing manifest if no longer in parsers.lua.
+  manifest.host_parser = nil
 end
 
 -- Remove vestigial / null fields that should not appear in the output.

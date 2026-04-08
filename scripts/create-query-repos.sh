@@ -172,6 +172,11 @@ process_lang() {
       echo "    updated: parser.json"
     fi
 
+    # Warn if queries_only but missing host_parser (CI validation will fail)
+    if jq -e '.queries_only == true and (.host_parser == null or .host_parser == {})' "${REPO_DIR}/parser.json" >/dev/null 2>&1; then
+      echo "    WARN: ${LANG} is queries_only but has no host_parser — CI validation will fail"
+    fi
+
     # ── 2. Copy query files ──
     if [[ -d "$LANG_QUERIES_DIR" ]]; then
       mkdir -p "${REPO_DIR}/queries"
@@ -283,6 +288,11 @@ process_lang() {
     echo "    WARN: gen-parser-manifest.lua failed for ${LANG} — parser.json may be empty"
     # Write a minimal fallback so CI doesn't hard-fail
     echo '{}' > "${REPO_DIR}/parser.json"
+  fi
+
+  # Warn if queries_only but missing host_parser (CI validation will fail)
+  if jq -e '.queries_only == true and (.host_parser == null or .host_parser == {})' "${REPO_DIR}/parser.json" >/dev/null 2>&1; then
+    echo "    WARN: ${LANG} is queries_only but has no host_parser — CI validation will fail"
   fi
 
   # 5. CI workflow
