@@ -5,23 +5,20 @@
 ((comment) @injection.content
   (#set! injection.language "comment"))
 
-; html`...`, sql`...`, etc. (tagged template literal form)
+; html(`...`), html`...`, sql(`...`), etc.
 (call_expression
   function: (identifier) @injection.language
-  arguments: (template_string) @injection.content
+  arguments: [
+    (arguments
+      (template_string) @injection.content)
+    (template_string) @injection.content
+  ]
   (#lua-match? @injection.language "^[a-zA-Z][a-zA-Z0-9]*$")
   (#offset! @injection.content 0 1 0 -1)
   (#set! injection.include-children)
-  (#not-any-of? @injection.language "svg" "css"))
-
-; html(`...`), sql(`...`), etc. (call-with-template-argument form)
-(call_expression
-  function: (identifier) @injection.language
-  arguments: (arguments
-    (template_string) @injection.content)
-  (#lua-match? @injection.language "^[a-zA-Z][a-zA-Z0-9]*$")
-  (#offset! @injection.content 0 1 0 -1)
-  (#set! injection.include-children)
+  ; Languages excluded from auto-injection due to special rules
+  ; - svg uses the html parser
+  ; - css uses the styled parser
   (#not-any-of? @injection.language "svg" "css"))
 
 ; svg`...` or svg(`...`)
