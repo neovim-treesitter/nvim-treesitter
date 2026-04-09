@@ -320,13 +320,19 @@ end
 ---@return string? err
 local function do_install_parser(logger, compile_location, target_location)
   logger:info('Installing parser...')
-  local tempfile = target_location .. tostring(uv.hrtime())
-  uv_rename(target_location, tempfile)
-  uv_unlink(tempfile)
-  local err = uv_copyfile(compile_location, target_location)
+  local tempfile = target_location .. '.' .. tostring(uv.hrtime()) .. '.tmp'
+  local err = uv_copyfile(compile_location, tempfile)
+  if err then
+    uv_unlink(tempfile)
+    a.schedule()
+    return logger:error('Error during parser installation: %s', err)
+  end
+  -- Atomic rename: replaces target in one syscall.
+  err = uv_rename(tempfile, target_location)
   a.schedule()
   if err then
-    return logger:error('Error during parser installation: %s', err)
+    uv_unlink(tempfile)
+    return logger:error('Error during parser installation (rename): %s', err)
   end
 end
 
@@ -358,12 +364,13 @@ local function do_copy_queries(logger, query_src, query_dir)
     return logger:error(err)
   end
   for f in fs.dir(query_src) do
-    err = uv_copyfile(fs.joinpath(query_src, f), fs.joinpath(query_dir, f))
+    local copy_err = uv_copyfile(fs.joinpath(query_src, f), fs.joinpath(query_dir, f))
+    if copy_err then
+      a.schedule()
+      return logger:error('Failed to copy query file %s: %s', f, copy_err)
+    end
   end
   a.schedule()
-  if err then
-    return logger:error(err)
-  end
 end
 
 -- ── semver comparison ─────────────────────────────────────────────────────────
@@ -657,7 +664,10 @@ local function install_one(lang, entry, versions, install_dir, cache_dir, _opts)
 
     if stype == 'queries_only' or stype == 'external_queries' then
       -- queries_project_dir was downloaded above; extract the .scm files from it.
-      local project_dir = queries_project_dir --[[@as string]]
+      if not queries_project_dir then
+        return logger:error('queries_project_dir is nil for %s (source type: %s)', lang, stype)
+      end
+      local project_dir = queries_project_dir
 
       -- queries live in <repo>/queries/<lang>/ (or just <repo>/queries/)
       local query_src = fs.joinpath(project_dir, 'queries', lang)

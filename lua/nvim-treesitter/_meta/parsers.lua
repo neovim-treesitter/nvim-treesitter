@@ -26,6 +26,9 @@ error('Cannot require a meta file')
 ---
 ---Directory with queries to be installed
 ---@field queries? string
+---
+---Filetype override(s) for Neovim filetype detection
+---@field filetype? string|string[]
 
 ---@class ParserInfo
 ---
@@ -41,6 +44,13 @@ error('Cannot require a meta file')
 ---Parsers that must be present for injection tests to pass
 ---(i.e., languages injected by this grammar's injections.scm)
 ---@field inject_deps? string[]
+---
+---Host parser configuration for query-only languages that piggyback on
+---another language's parser binary (e.g. ecma → javascript)
+---@field host_parser? { lang: string, url?: string, parser_version?: string, location?: string }
+---
+---Alternative display name for the README/docs
+---@field readme_name? string
 ---
 ---Language support tier, maps to "stable", "unstable", "unmaintained", "unsupported"
 ---@field tier integer

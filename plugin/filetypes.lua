@@ -79,6 +79,9 @@ end
 local ok, registry = pcall(require, 'nvim-treesitter.registry')
 if ok then
   registry.load(function(reg)
+    if not reg then
+      return
+    end
     for lang, entry in pairs(reg) do
       if entry.filetypes and #entry.filetypes > 0 then
         vim.treesitter.language.register(lang, entry.filetypes)

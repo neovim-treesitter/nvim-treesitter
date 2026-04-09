@@ -45,16 +45,16 @@ function M.get_local_parsers()
   return config.local_parsers or {}
 end
 
----@param type 'queries'|'parsers'?
+---@param kind 'queries'|'parsers'?
 ---@return string[]
-function M.get_installed(type)
+function M.get_installed(kind)
   local installed = {} --- @type table<string, boolean>
-  if not (type and type == 'parsers') then
+  if not (kind and kind == 'parsers') then
     for f in vim.fs.dir(M.get_install_dir('queries')) do
       installed[f] = true
     end
   end
-  if not (type and type == 'queries') then
+  if not (kind and kind == 'queries') then
     for f in vim.fs.dir(M.get_install_dir('parser')) do
       installed[vim.fn.fnamemodify(f, ':r')] = true
     end
@@ -119,7 +119,16 @@ function M.norm_languages(languages, skip)
     )
   end
 
-  return vim.list.unique(languages)
+  -- Deduplicate while preserving order (vim.list.unique is nightly-only).
+  local seen = {} ---@type table<string, boolean>
+  local unique = {} ---@type string[]
+  for _, lang in ipairs(languages) do
+    if not seen[lang] then
+      seen[lang] = true
+      unique[#unique + 1] = lang
+    end
+  end
+  return unique
 end
 
 return M

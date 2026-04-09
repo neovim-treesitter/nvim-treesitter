@@ -53,7 +53,7 @@ local function install_health()
   do -- treesitter check
     local ts = check_exe('tree-sitter')
     if ts then
-      if vim.version.ge(ts.version, TREE_SITTER_MIN_VER) then
+      if ts.version and vim.version.ge(ts.version, TREE_SITTER_MIN_VER) then
         health.ok(string.format('tree-sitter-cli %s (%s)', ts.version, ts.path))
       else
         health.error(
@@ -165,10 +165,10 @@ function M.check()
   if #error_collection > 0 then
     health.start('The following errors have been detected in query files:')
     for _, p in ipairs(error_collection) do
-      local lang, type = p[1], p[2]
+      local lang, query_group = p[1], p[2]
       local lines = {}
-      table.insert(lines, lang .. '(' .. type .. '): ')
-      local files = tsq.get_files(lang, type)
+      table.insert(lines, lang .. '(' .. query_group .. '): ')
+      local files = tsq.get_files(lang, query_group)
       if #files > 0 then
         for _, file in ipairs(files) do
           local query = util.read_file(file)

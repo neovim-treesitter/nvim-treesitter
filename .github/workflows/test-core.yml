@@ -7,6 +7,9 @@ on:
         type: string
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 defaults:
   run:
     shell: bash
@@ -60,7 +63,9 @@ jobs:
       - name: Check queries (tsqueryls)
         if: ${{ matrix.os != 'windows-latest' }}
         continue-on-error: true
-        run: make checkquery
+        run: |
+          make checkquery 2>&1 | tee /tmp/test-checkquery.log
+          echo "${PIPESTATUS[0]}" > /tmp/test-checkquery.exit
 
       - name: Run highlight tests
         if: ${{ matrix.os != 'windows-latest' }}
@@ -148,6 +153,7 @@ jobs:
             echo "|-------|------|--------|-------|"
           } >> "$GITHUB_STEP_SUMMARY"
 
+          parse_log "checkquery" /tmp/test-checkquery.log
           parse_log "query"   /tmp/test-query.log
           parse_log "indent"  /tmp/test-indent.log
           parse_log "install" /tmp/test-install.log
@@ -156,7 +162,7 @@ jobs:
         if: ${{ matrix.os != 'windows-latest' && always() }}
         run: |
           failed=0
-          for f in /tmp/test-query.exit /tmp/test-indent.exit /tmp/test-install.exit; do
+          for f in /tmp/test-checkquery.exit /tmp/test-query.exit /tmp/test-indent.exit /tmp/test-install.exit; do
             [[ -f "$f" ]] || continue
             code=$(cat "$f")
             if [[ "$code" != "0" ]]; then

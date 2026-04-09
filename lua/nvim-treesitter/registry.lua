@@ -107,10 +107,13 @@ function M.load(callback, opts)
     local ok, meta = pcall(dofile, mp)
     if ok and type(meta) == 'table' then
       if (os.time() - (meta.fetched_at or 0)) < REGISTRY_TTL then
-        local data = decode_lines(vim.fn.readfile(rp))
-        if data then
-          M.loaded = data
-          return callback(data, nil)
+        local rok, lines = pcall(vim.fn.readfile, rp)
+        if rok then
+          local data = decode_lines(lines)
+          if data then
+            M.loaded = data
+            return callback(data, nil)
+          end
         end
       end
     end
@@ -124,7 +127,8 @@ function M.load(callback, opts)
     callback = vim.schedule_wrap(function(response)
       if response.status ~= 200 then
         -- Stale fallback — better than nothing
-        local data = decode_lines(vim.fn.readfile(rp))
+        local rok, lines = pcall(vim.fn.readfile, rp)
+        local data = rok and decode_lines(lines) or nil
         if data then
           vim.notify(
             'nvim-treesitter: registry fetch failed (HTTP '

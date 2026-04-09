@@ -7,6 +7,9 @@ on:
       - "main"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-generate-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
