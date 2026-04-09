@@ -109,8 +109,9 @@ vim.api.nvim_create_autocmd('FileType', {
 | `:TSInstall {lang...}` | Install parsers and queries. No-op if already installed. |
 | `:TSInstall! {lang...}` | Force reinstall (useful after upgrading the plugin). |
 | `:TSUpdate [{lang...}]` | Update installed parsers and queries to latest release. Omit languages to update all. |
-| `:TSUpdate! [{lang...}]` | Update, bypassing the local version cache. |
+| `:TSUpdate! [{lang...}]` | Update, bypassing the per-parser version cache (24h TTL). |
 | `:TSUninstall {lang...}` | Remove parsers and queries for the specified languages. |
+| `:TSRegistryUpdate` | Force-refresh the registry from GitHub, bypassing the 7-day cache. |
 | `:TSStatus` | Open a status buffer showing installed version vs. latest for each language. |
 | `:TSLog` | Show log from the last install/update/uninstall run. |
 
@@ -120,6 +121,29 @@ vim.api.nvim_create_autocmd('FileType', {
 
 Languages are discovered from the [neovim-treesitter registry][registry]. Any
 language in the registry can be installed; there are no tiers.
+
+### Registry and version caching
+
+Two caches avoid unnecessary network requests:
+
+1. **Registry cache** (7-day TTL) — the full `registry.json` is fetched from
+   GitHub on first use and stored at `<stdpath('data')>/site/registry/`.
+   Subsequent loads within 7 days use the cached copy. If a fetch fails, the
+   stale cache is used as a fallback.
+
+2. **Per-parser version cache** (24-hour TTL) — for each installed language,
+   the latest known parser and query versions are cached so `:TSUpdate` doesn't
+   hit the network for every language on every run.
+
+To refresh each cache independently:
+
+```vim
+" Force re-fetch the registry (e.g. after a new language is added)
+:TSRegistryUpdate
+
+" Force re-check per-parser versions (bypasses the 24h cache)
+:TSUpdate!
+```
 
 ### What is installed
 
