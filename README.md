@@ -8,12 +8,19 @@ queries are discovered from a [community registry][registry] rather than
 pinned inside this repo, so each language's queries are maintained by the
 people who use that language.
 
+This is a fork of [nvim-treesitter/nvim-treesitter][upstream] that replaces
+the monolithic query collection with a distributed model: per-language query
+repos, a shared parser registry, and CI infrastructure for validating queries.
+See the [neovim-treesitter org][org] for the full ecosystem.
+
 > [!CAUTION]
 > This is a full, incompatible rewrite. Treat it as a new plugin and set it up
 > from scratch following the instructions below. If you need the previous
 > version, use the [`master` branch][master] (locked, no new features).
 
 [registry]: https://github.com/neovim-treesitter/treesitter-parser-registry
+[upstream]: https://github.com/nvim-treesitter/nvim-treesitter
+[org]: https://github.com/neovim-treesitter
 [master]: https://github.com/nvim-treesitter/nvim-treesitter/blob/master/README.md
 
 ---
@@ -119,8 +126,13 @@ language in the registry can be installed; there are no tiers.
 For each language, `nvim-treesitter` installs:
 
 - **Parser** — a compiled `.so` fetched from the upstream grammar repository
-- **Queries** — `.scm` files from the community query repo
-  (`nvim-treesitter-queries-<lang>` under the `neovim-treesitter` GitHub org)
+- **Queries** — `.scm` files sourced from whichever location the registry designates:
+  - A community query repo (`nvim-treesitter-queries-<lang>` under the
+    [neovim-treesitter][org] GitHub org) for `external_queries` languages
+  - The parser repo itself for `self_contained` languages (where the parser
+    author ships Neovim queries alongside the grammar)
+
+The source type is transparent to users — `:TSInstall` handles both.
 
 ### Supported query types
 
@@ -253,8 +265,13 @@ the [contributing guide][contributing] for the full workflow.
 2. Create the `nvim-treesitter-queries-<lang>` repository following the
    [query repo setup guide][setup-guide]
 
+Alternatively, if you maintain the parser itself you can ship queries
+directly from your parser repo using the **self-contained** model — see the
+[self-contained migration guide][sc-guide].
+
 [registry-json]: https://github.com/neovim-treesitter/treesitter-parser-registry/blob/main/registry.json
 [setup-guide]: https://github.com/neovim-treesitter/treesitter-parser-registry/blob/main/docs/contributing.md#creating-a-query-repo
+[sc-guide]: https://github.com/neovim-treesitter/treesitter-parser-registry/blob/main/docs/self-contained-migration.md
 
 ### Claiming maintainership of a language repo
 
