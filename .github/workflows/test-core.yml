@@ -45,14 +45,12 @@ jobs:
         name: Compile parsers
         env:
           PLENARY: .test-deps/plenary.nvim
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: $NVIM --clean -u scripts/minimal_init.lua -l scripts/install-parsers.lua --max-jobs=10
 
       - if: inputs.type == 'generate'
         name: Generate and compile parsers
         env:
           PLENARY: .test-deps/plenary.nvim
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: $NVIM --clean -u scripts/minimal_init.lua -l scripts/install-parsers.lua --generate --max-jobs=2
 
       - name: Check parsers

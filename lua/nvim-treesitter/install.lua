@@ -162,16 +162,14 @@ local function curl_download(url, output_path)
   log.trace('curl_download %s -> %s', url, output_path)
   local curl = require('plenary.curl')
   local raw_args = { '-L', '--retry', '3', '--fail', '--show-error' }
-  -- GitHub Actions runners get HTML instead of gzip from github.com/codeload.github.com
-  -- when downloading archive tarballs without authentication.  When the URL is the
-  -- GitHub API tarball endpoint (api.github.com/repos/.../tarball/...) pass the token
-  -- and the required Accept header so the API issues a proper pre-signed redirect.
+  -- GitHub API tarball endpoint needs the Accept header so the API returns a
+  -- 302 redirect to the pre-signed codeload URL instead of JSON metadata.
+  -- NOTE: Do NOT send Authorization here.  The GITHUB_TOKEN in Actions is an
+  -- installation token scoped to the running repo; curl -L forwards it to
+  -- codeload.github.com on the redirect, and codeload returns 200 HTML (not
+  -- gzip) for tokens that don't cover the target repo.  Public repos don't
+  -- need auth at all, so omitting it is both simpler and correct.
   if url:match('api%.github%.com') then
-    local token = vim.env.GITHUB_TOKEN
-    if token and token ~= '' then
-      raw_args[#raw_args + 1] = '-H'
-      raw_args[#raw_args + 1] = 'Authorization: Bearer ' .. token
-    end
     raw_args[#raw_args + 1] = '-H'
     raw_args[#raw_args + 1] = 'Accept: application/vnd.github+json'
   end
