@@ -74,10 +74,33 @@ fi
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 QUERIES_DIR="$REPO_ROOT/runtime/queries"
 VALIDATE_TEMPLATE="$REPO_ROOT/scripts/templates/query-validate.yml"
+SELF_CONTAINED_TEMPLATE="$REPO_ROOT/scripts/templates/self-contained-validate.yml"
 BUMP_TEMPLATE="$REPO_ROOT/scripts/templates/query-bump.yml"
 README_TEMPLATE="$REPO_ROOT/scripts/templates/query-repo-README.md"
 
+# Fetch registry.json from the canonical source so self_contained detection
+# is always up to date without relying on a local sibling directory.
+REGISTRY_TMPDIR="$(mktemp -d)"
+trap 'rm -rf "$REGISTRY_TMPDIR"' EXIT
+REGISTRY_JSON="$REGISTRY_TMPDIR/registry.json"
+echo "Fetching treesitter-parser-registry..."
+gh api repos/neovim-treesitter/treesitter-parser-registry/contents/registry.json \
+  --jq '.content' | base64 -d > "$REGISTRY_JSON"
+
+# Look up the registry source.type for a language.
+# Outputs e.g. "self_contained", "external_queries", "queries_only".
+registry_source_type() {
+  jq -r --arg lang "$1" '.[$lang].source.type // "external_queries"' "$REGISTRY_JSON"
+}
+
+# Look up queries_dir from registry (used as QUERIES_DIR placeholder in
+# self-contained-validate.yml).
+registry_queries_dir() {
+  jq -r --arg lang "$1" '.[$lang].source.queries_dir // "queries"' "$REGISTRY_JSON"
+}
+
 # If no langs provided, discover all dirs under runtime/queries/
+# TODO: long-term, use the registry as source of truth for lang discovery.
 if [[ $# -eq 0 ]]; then
   LANGS=()
   while IFS= read -r _lang; do LANGS+=("$_lang"); done < <(find "$QUERIES_DIR" -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | sort)
@@ -88,6 +111,11 @@ fi
 if [[ ! -f "$VALIDATE_TEMPLATE" ]]; then
   echo "ERROR: validate.yml template not found at $VALIDATE_TEMPLATE" >&2
   echo "       Expected: scripts/templates/query-validate.yml" >&2
+  exit 1
+fi
+
+if [[ ! -f "$SELF_CONTAINED_TEMPLATE" ]]; then
+  echo "ERROR: self-contained-validate.yml template not found at $SELF_CONTAINED_TEMPLATE" >&2
   exit 1
 fi
 
@@ -214,13 +242,32 @@ process_lang() {
     # ── 5. Sync CI workflows ──
     mkdir -p "${REPO_DIR}/.github/workflows"
     local WF_CHANGED=false
-    if [[ -f "$VALIDATE_TEMPLATE" ]]; then
+    local SRC_TYPE
+    SRC_TYPE="$(registry_source_type "$LANG")"
+
+    if [[ "$SRC_TYPE" == "self_contained" ]]; then
+      # Self-contained: parser + queries live in one repo — use
+      # self-contained-validate.yml and no bump workflow.
+      local QUERIES_DIR_IN_REPO
+      QUERIES_DIR_IN_REPO="$(registry_queries_dir "$LANG")"
+      local SC_RENDERED="$REGISTRY_TMPDIR/sc-validate-${LANG}.yml"
+      sed "s/{{LANG}}/${LANG}/g; s|{{QUERIES_DIR}}|${QUERIES_DIR_IN_REPO}|g" \
+        "$SELF_CONTAINED_TEMPLATE" > "$SC_RENDERED"
+      if ! cmp -s "$SC_RENDERED" "${REPO_DIR}/.github/workflows/validate.yml" 2>/dev/null; then
+        cp "$SC_RENDERED" "${REPO_DIR}/.github/workflows/validate.yml"
+        WF_CHANGED=true
+      fi
+      # Remove bump.yml if present (self-contained repos don't track an
+      # external parser — the parser version is managed in the same repo).
+      if [[ -f "${REPO_DIR}/.github/workflows/bump.yml" ]]; then
+        rm "${REPO_DIR}/.github/workflows/bump.yml"
+        WF_CHANGED=true
+      fi
+    else
       if ! cmp -s "$VALIDATE_TEMPLATE" "${REPO_DIR}/.github/workflows/validate.yml" 2>/dev/null; then
         cp "$VALIDATE_TEMPLATE" "${REPO_DIR}/.github/workflows/validate.yml"
         WF_CHANGED=true
       fi
-    fi
-    if [[ -f "$BUMP_TEMPLATE" ]]; then
       if ! cmp -s "$BUMP_TEMPLATE" "${REPO_DIR}/.github/workflows/bump.yml" 2>/dev/null; then
         cp "$BUMP_TEMPLATE" "${REPO_DIR}/.github/workflows/bump.yml"
         WF_CHANGED=true
@@ -297,8 +344,19 @@ process_lang() {
 
   # 5. CI workflow
   mkdir -p "${REPO_DIR}/.github/workflows"
-  cp "${VALIDATE_TEMPLATE}" "${REPO_DIR}/.github/workflows/validate.yml"
-  cp "${BUMP_TEMPLATE}" "${REPO_DIR}/.github/workflows/bump.yml"
+  local SRC_TYPE
+  SRC_TYPE="$(registry_source_type "$LANG")"
+
+  if [[ "$SRC_TYPE" == "self_contained" ]]; then
+    local QUERIES_DIR_IN_REPO
+    QUERIES_DIR_IN_REPO="$(registry_queries_dir "$LANG")"
+    sed "s/{{LANG}}/${LANG}/g; s|{{QUERIES_DIR}}|${QUERIES_DIR_IN_REPO}|g" \
+      "$SELF_CONTAINED_TEMPLATE" > "${REPO_DIR}/.github/workflows/validate.yml"
+    # No bump.yml for self-contained repos
+  else
+    cp "${VALIDATE_TEMPLATE}" "${REPO_DIR}/.github/workflows/validate.yml"
+    cp "${BUMP_TEMPLATE}" "${REPO_DIR}/.github/workflows/bump.yml"
+  fi
 
   # 6. README
   sed "s/{{LANG}}/${LANG}/g" "${README_TEMPLATE}" > "${REPO_DIR}/README.md"
