@@ -163,14 +163,17 @@ local function curl_download(url, output_path)
   local curl = require('plenary.curl')
   local raw_args = { '-L', '--retry', '3', '--fail', '--show-error' }
   -- GitHub Actions runners get HTML instead of gzip from github.com/codeload.github.com
-  -- when downloading archive tarballs without authentication.  Pass GITHUB_TOKEN when
-  -- available to get the real binary response.
-  if url:match('github%.com') then
+  -- when downloading archive tarballs without authentication.  When the URL is the
+  -- GitHub API tarball endpoint (api.github.com/repos/.../tarball/...) pass the token
+  -- and the required Accept header so the API issues a proper pre-signed redirect.
+  if url:match('api%.github%.com') then
     local token = vim.env.GITHUB_TOKEN
     if token and token ~= '' then
       raw_args[#raw_args + 1] = '-H'
       raw_args[#raw_args + 1] = 'Authorization: Bearer ' .. token
     end
+    raw_args[#raw_args + 1] = '-H'
+    raw_args[#raw_args + 1] = 'Accept: application/vnd.github+json'
   end
   local result, err = a.await(1, function(cb)
     curl.get(url, {
@@ -428,9 +431,16 @@ end
 ---@return string?
 local function tarball_url(repo_url, ref)
   local url = repo_url:gsub('%.git$', '')
-  -- GitHub
+  -- GitHub: use the REST API tarball endpoint rather than the direct archive URL.
+  -- The direct github.com/archive/ URL redirects to codeload.github.com; on GitHub
+  -- Actions runners a restricted GITHUB_TOKEN (contents:read) causes codeload to
+  -- return 200 OK HTML instead of the binary.  The API endpoint issues a pre-signed
+  -- redirect that works correctly with any valid token scope.
   if url:match('github%.com') then
-    return string.format('%s/archive/%s.tar.gz', url, ref)
+    local owner_repo = url:match('github%.com/(.+)$')
+    if owner_repo then
+      return string.format('https://api.github.com/repos/%s/tarball/%s', owner_repo, ref)
+    end
   end
   -- GitLab
   if url:match('gitlab%.com') then
