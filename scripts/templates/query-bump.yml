@@ -5,6 +5,10 @@ on:
     - cron: "0 8 * * 6"
   workflow_dispatch:
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   bump:
     uses: neovim-treesitter/.github/.github/workflows/query-bump.yml@main
