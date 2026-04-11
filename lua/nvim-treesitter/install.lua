@@ -161,11 +161,22 @@ end
 local function curl_download(url, output_path)
   log.trace('curl_download %s -> %s', url, output_path)
   local curl = require('plenary.curl')
+  local raw_args = { '-L', '--retry', '3', '--fail', '--show-error' }
+  -- GitHub Actions runners get HTML instead of gzip from github.com/codeload.github.com
+  -- when downloading archive tarballs without authentication.  Pass GITHUB_TOKEN when
+  -- available to get the real binary response.
+  if url:match('github%.com') then
+    local token = vim.env.GITHUB_TOKEN
+    if token and token ~= '' then
+      raw_args[#raw_args + 1] = '-H'
+      raw_args[#raw_args + 1] = 'Authorization: Bearer ' .. token
+    end
+  end
   local result, err = a.await(1, function(cb)
     curl.get(url, {
       output = output_path,
       -- follow redirects, retry on transient failures
-      raw = { '-L', '--retry', '3', '--fail', '--show-error' },
+      raw = raw_args,
       callback = function(res)
         cb(res, nil)
       end,
