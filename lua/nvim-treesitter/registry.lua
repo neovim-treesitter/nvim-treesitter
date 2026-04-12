@@ -2,7 +2,7 @@
 -- Loads the treesitter-parser-registry JSON and exposes a simple get/load API.
 --
 -- The registry fetch + cache logic from treesitter-registry.lua is vendored
--- inline so this module has no external runtime dependency beyond plenary.curl.
+-- inline so this module has no external runtime dependencies.
 --
 -- Registry JSON structure per entry:
 --   {
@@ -120,19 +120,19 @@ function M.load(callback, opts)
   end
 
   -- ── Fetch a fresh copy ──────────────────────────────────────────────────
-  local curl = require('plenary.curl')
-  curl.get(REGISTRY_URL, {
-    headers = { accept = 'application/json' },
-    timeout = 15000,
-    callback = vim.schedule_wrap(function(response)
-      if response.status ~= 200 then
+  vim.net.request(
+    REGISTRY_URL,
+    { headers = { accept = 'application/json' }, retry = 3 },
+    vim.schedule_wrap(function(err, response)
+      -- Check body instead of status since status may be nil when body is returned
+      if err or not response or not response.body then
         -- Stale fallback — better than nothing
-        local rok, lines = pcall(vim.fn.readfile, rp)
-        local data = rok and decode_lines(lines) or nil
+        local rok, cached = pcall(vim.fn.readfile, rp)
+        local data = rok and decode_lines(cached) or nil
         if data then
           vim.notify(
             'nvim-treesitter: registry fetch failed (HTTP '
-              .. tostring(response.status)
+              .. tostring(response and response.status or 'unknown')
               .. '), using stale cache',
             vim.log.levels.WARN
           )
@@ -157,8 +157,8 @@ function M.load(callback, opts)
       data['$schema'] = nil
       M.loaded = data
       callback(data, nil)
-    end),
-  })
+    end)
+  )
 end
 
 return M

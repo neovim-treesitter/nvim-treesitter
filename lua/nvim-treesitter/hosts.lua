@@ -1,12 +1,10 @@
 -- lua/nvim-treesitter/hosts.lua
 -- Vendored host adapter for version discovery.
 -- Originally derived from treesitter-parser-registry/lua/treesitter-registry/hosts.lua
--- Requires: nvim-lua/plenary.nvim
 --
 -- Git host adapters: version-check APIs + tarball/raw-file URL construction.
 --
--- Vendored copy of treesitter-registry/hosts.lua, patched to use
--- plenary.curl instead of raw vim.system curl invocations.
+-- Vendored copy of treesitter-registry/hosts.lua, uses vim.net.request for HTTP.
 --
 -- Version check strategy per host:
 --   github.com  → GitHub REST API (releases/tags endpoints, no auth needed for
@@ -32,27 +30,31 @@ local function owner_repo(url)
   return owner, repo
 end
 
---- HTTP GET via plenary.curl; calls callback(body, err).
+--- HTTP GET via vim.net.request; calls callback(body, err).
 ---@param url      string
 ---@param headers  table<string,string>?  header key→value pairs
 ---@param callback fun(body: string?, err: string?)
 local function http_get(url, headers, callback)
-  local curl = require('plenary.curl')
-  curl.get(url, {
-    headers = headers or {},
-    timeout = 10000,
-    callback = vim.schedule_wrap(function(r)
-      if r.status and r.status >= 200 and r.status < 300 then
-        callback(r.body, nil)
-      else
-        local err = 'HTTP ' .. tostring(r.status or 'unknown')
-        if r.body and r.body ~= '' then
-          err = err .. ': ' .. r.body
-        end
+  vim.net.request(
+    url,
+    { headers = headers or {}, retry = 3 },
+    vim.schedule_wrap(function(err, res)
+      if err then
         callback(nil, err)
+        -- Check body instead of status since status may be nil when body is returned
+      elseif res and res.body then
+        callback(res.body, nil)
+      else
+        local status = res and res.status or 'unknown'
+        local body = res and res.body or ''
+        local http_err = 'HTTP ' .. tostring(status)
+        if body and body ~= '' then
+          http_err = http_err .. ': ' .. body
+        end
+        callback(nil, http_err or 'empty response')
       end
-    end),
-  })
+    end)
+  )
 end
 
 --- Parse the latest semver tag from a list of tag objects.
@@ -334,6 +336,7 @@ end
 function generic.tarball_url(_url, _ref)
   return nil
 end
+
 function generic.raw_url(_url, _ref, _path)
   return nil
 end

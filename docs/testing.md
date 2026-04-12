@@ -38,19 +38,8 @@ each one automatically.
 | `stylua-{arch}/` | `make stylua` | StyLua formatter |
 | `emmylua_check-{arch}/` | `make emmyluals` | EmmyLua static analyser |
 
-**plenary.nvim** — not in the Makefile yet. It is required by `lua/nvim-treesitter/install.lua`
-(via `plenary.curl`) and by the install tests. Clone it manually until a Makefile target is added:
-
-```bash
-git clone --filter=blob:none https://github.com/nvim-lua/plenary.nvim .test-deps/plenary.nvim
-```
-
-Then `scripts/minimal_init.lua` or the spec file itself must add it to the rtp. The
-`tests/install/install_spec.lua` adds it at the top of the file:
-
-```lua
-vim.opt.rtp:prepend(repo_root .. '/.test-deps/plenary.nvim')
-```
+**Note:** nvim-treesitter no longer depends on plenary.nvim. It uses Neovim's built-in
+`vim.net.request()` (available in Neovim 0.12+) for HTTP operations.
 
 ---
 
@@ -65,7 +54,7 @@ This is the `-u` init script passed to every headless run. It:
 5. Disables swapfile
 6. Sets up a `FileType` autocmd that starts treesitter and sets `indentexpr`
 
-If a test suite needs additional plugins (e.g. plenary), add them to the rtp either in
+If a test suite needs additional plugins, add them to the rtp either in
 `minimal_init.lua` or at the top of the spec file.
 
 ---
@@ -115,27 +104,25 @@ Tests `v:lua.require"nvim-treesitter".indentexpr()` for each language under `tes
 **Mocking strategy:**
 
 ```
-plenary.curl    → package.loaded['plenary.curl'] stub (placed before any require)
+vim.net.request → package.loaded['vim.net.request'] stub (placed before any require)
 vim.system      → per-test replacement; creates parser.so, simulates tar extraction
 registry.load   → wraps to call callback via vim.schedule
 version.refresh_all → injects versions into cache table, calls on_done via vim.schedule
 queries_resolver.resolve → no-op stub calling cb via vim.schedule
 ```
 
-The `plenary.curl` stub must be set in `package.loaded` **before** `registry.lua` is
-first `require`d, because `registry.lua` requires `plenary.curl` at module scope. The
-spec file does this at the very top.
+The `vim.net.request` stub must be set in `package.loaded` **before** any module that
+uses HTTP is first `require`d. The spec file does this at the very top.
 
 ---
 
 ## Writing New Specs
 
 1. Create `tests/<suite>/<name>_spec.lua`
-2. Use the plentest API: `describe`, `it`, `before_each`, `after_each`
+2. Use the plenltest API: `describe`, `it`, `before_each`, `after_each`
 3. Use `assert.True`, `assert.Falsy`, `assert.are.equal`, `assert.is.number`, etc.
-   (luassert, bundled with plentest)
-4. For async code, wrap the test body with `async(function() ... end)` from
-   `require('plenary.async')` if needed — or use `vim.wait` with a done flag.
+   (luassert, bundled with plenltest)
+4. For async code, use `vim.wait` with a done flag.
 5. Run with `make tests TESTS=<suite>`
 
 Example skeleton:

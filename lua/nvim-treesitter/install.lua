@@ -18,7 +18,7 @@
 ---                                   M.get_installed, M.set_installed
 ---   nvim-treesitter.queries_resolver M.resolve(lang, install_dir, cb)
 ---
---- HTTP: plenary.curl (never raw curl / vim.system for HTTP)
+--- HTTP: vim.net.request (Neovim 0.12+)
 --- Build: vim.system (tree-sitter CLI)
 
 local fn = vim.fn
@@ -150,9 +150,8 @@ local function system(cmd, opts)
   return r
 end
 
--- ── plenary.curl wrapper ──────────────────────────────────────────────────────
--- All HTTP downloads go through here.  plenary.curl is callback-based so we
--- wrap it with a.awrap to make it await-able.
+-- ── vim.net.request wrapper ────────────────────────────────────────────────────
+-- All HTTP downloads go through here. Uses vim.net.request for async downloads.
 
 ---@async
 ---@param url string
@@ -160,31 +159,22 @@ end
 ---@return { status: integer, body: string }? result, string? err
 local function curl_download(url, output_path)
   log.trace('curl_download %s -> %s', url, output_path)
-  local curl = require('plenary.curl')
-  local raw_args = { '-L', '--retry', '3', '--fail', '--show-error' }
-  -- GitHub API tarball endpoint needs the Accept header so the API returns a
-  -- 302 redirect to the pre-signed codeload URL instead of JSON metadata.
-  -- NOTE: Do NOT send Authorization here.  The GITHUB_TOKEN in Actions is an
-  -- installation token scoped to the running repo; curl -L forwards it to
-  -- codeload.github.com on the redirect, and codeload returns 200 HTML (not
-  -- gzip) for tokens that don't cover the target repo.  Public repos don't
-  -- need auth at all, so omitting it is both simpler and correct.
+  local headers = {}
   if url:match('api%.github%.com') then
-    raw_args[#raw_args + 1] = '-H'
-    raw_args[#raw_args + 1] = 'Accept: application/vnd.github+json'
+    headers['Accept'] = 'application/vnd.github+json'
   end
   local result, err = a.await(1, function(cb)
-    curl.get(url, {
-      output = output_path,
-      -- follow redirects, retry on transient failures
-      raw = raw_args,
-      callback = function(res)
-        cb(res, nil)
-      end,
-      on_error = function(e)
-        cb(nil, tostring(e))
-      end,
-    })
+    vim.net.request(url, {
+      outpath = output_path,
+      headers = headers,
+      retry = 3,
+    }, function(req_err)
+      if req_err then
+        cb(nil, req_err)
+      else
+        cb({ status = 200 }, nil)
+      end
+    end)
   end)
   return result, err
 end
@@ -205,7 +195,7 @@ local function do_download_tarball(logger, tarball_url, project_name, cache_dir,
 
   local tarball_path = fs.joinpath(cache_dir, project_name .. '.tar.gz')
 
-  do -- Download via plenary.curl
+  do -- Download via vim.net.request
     logger:info('Downloading %s...', project_name)
     local _, err = curl_download(tarball_url, tarball_path)
     if err then
@@ -949,7 +939,7 @@ M.install = a.async(function(languages, opts)
       local tasks = {} ---@type async.TaskFun[]
       for _, lang in ipairs(batch) do
         total = total + 1
-        tasks[#tasks + 1] = a.async(--[[@async]] function()
+        tasks[#tasks + 1] = a.async( --[[@async]] function()
           a.schedule()
           local ok = install_lang(
             lang,
@@ -1075,7 +1065,7 @@ M.update = a.async(function(languages, opts)
     local entry = local_parsers_upd[lang] or registry.get(lang)
     if entry then
       local versions = (cache.parsers and cache.parsers[lang]) or {}
-      tasks[#tasks + 1] = a.async(--[[@async]] function()
+      tasks[#tasks + 1] = a.async( --[[@async]] function()
         a.schedule()
         local ok = install_lang(lang, entry, versions, install_dir, cache_dir, true, opts)
         if ok then
@@ -1126,7 +1116,7 @@ M.uninstall = a.async(function(languages, opts)
       local parser = fs.joinpath(parser_dir, lang) .. '.so'
       local queries = fs.joinpath(query_dir, lang)
 
-      tasks[#tasks + 1] = a.async(--[[@async]] function()
+      tasks[#tasks + 1] = a.async( --[[@async]] function()
         local had_err = false
 
         -- Remove parser .so

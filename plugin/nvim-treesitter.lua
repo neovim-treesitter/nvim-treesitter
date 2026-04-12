@@ -4,9 +4,6 @@
 -- Defines all user-facing commands and wires them to the new modular
 -- install.lua API.
 --
--- Requires:
---   nvim-lua/plenary.nvim  (used by install.lua for HTTP via plenary.curl)
---
 -- Commands:
 --   :TSInstall[!] {lang...}    install; bang = force reinstall
 --   :TSUpdate[!] [{lang...}]   update installed; bang = bypass version cache
