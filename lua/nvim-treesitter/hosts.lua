@@ -41,7 +41,8 @@ local function http_get(url, headers, callback)
     vim.schedule_wrap(function(err, res)
       if err then
         callback(nil, err)
-      elseif res and res.status >= 200 and res.status < 300 then
+        -- Check body instead of status since status may be nil when body is returned
+      elseif res and res.body then
         callback(res.body, nil)
       else
         local status = res and res.status or 'unknown'
@@ -50,7 +51,7 @@ local function http_get(url, headers, callback)
         if body and body ~= '' then
           http_err = http_err .. ': ' .. body
         end
-        callback(nil, http_err)
+        callback(nil, http_err or 'empty response')
       end
     end)
   )
@@ -335,6 +336,7 @@ end
 function generic.tarball_url(_url, _ref)
   return nil
 end
+
 function generic.raw_url(_url, _ref, _path)
   return nil
 end

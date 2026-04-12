@@ -124,10 +124,11 @@ function M.load(callback, opts)
     REGISTRY_URL,
     { headers = { accept = 'application/json' }, retry = 3 },
     vim.schedule_wrap(function(err, response)
-      if err or (response.status ~= 200) then
+      -- Check body instead of status since status may be nil when body is returned
+      if err or not response or not response.body then
         -- Stale fallback — better than nothing
-        local rok, lines = pcall(vim.fn.readfile, rp)
-        local data = rok and decode_lines(lines) or nil
+        local rok, cached = pcall(vim.fn.readfile, rp)
+        local data = rok and decode_lines(cached) or nil
         if data then
           vim.notify(
             'nvim-treesitter: registry fetch failed (HTTP '
