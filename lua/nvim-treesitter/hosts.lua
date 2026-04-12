@@ -91,7 +91,12 @@ end
 local function latest_semver(tags)
   local best, best_parts
   for _, t in ipairs(tags) do
-    local name = t.name or t.tag_name or ''
+    -- For releases: tag_name is the version (e.g. "v0.25.0"), name is the
+    -- human-readable title which may be null or non-semver.
+    -- For tags: name is the tag (e.g. "v0.25.0"), no tag_name field.
+    -- Prefer tag_name, fall back to name.  JSON null → vim.NIL (userdata).
+    local raw = t.tag_name or t.name
+    local name = type(raw) == 'string' and raw or ''
     local ma, mi, pa = name:match('^v?(%d+)%.(%d+)%.?(%d*)$')
     if ma then
       local parts = { tonumber(ma), tonumber(mi), tonumber(pa) or 0 }
