@@ -188,3 +188,27 @@ api.nvim_create_user_command('TSRegistryUpdate', function()
 end, {
   desc = 'Force refresh the treesitter parser registry',
 })
+
+-- ── :TSCacheClear ─────────────────────────────────────────────────────────────
+-- Clear the version cache and registry cache so the next :TSInstall or
+-- :TSUpdate will re-fetch versions from the network.
+
+api.nvim_create_user_command('TSCacheClear', function()
+  vim.schedule(function()
+    local cache = require('nvim-treesitter.cache')
+    local registry = require('nvim-treesitter.registry')
+    local cleared = cache.clear()
+    -- Also force a fresh registry fetch
+    registry.load(function(_, err)
+      if cleared then
+        vim.notify('[nvim-treesitter] Version cache cleared; registry refreshed'
+          .. (err and (' (with error: ' .. err .. ')') or ''),
+          err and vim.log.levels.WARN or vim.log.levels.INFO)
+      else
+        vim.notify('[nvim-treesitter] Failed to clear cache', vim.log.levels.ERROR)
+      end
+    end, { force = true })
+  end)
+end, {
+  desc = 'Clear all nvim-treesitter caches and force a fresh registry fetch',
+})

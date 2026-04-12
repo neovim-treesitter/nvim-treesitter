@@ -1185,8 +1185,9 @@ describe('local_parsers type=self_contained', function()
     local version_mod = require('nvim-treesitter.version')
     local orig_refresh = version_mod.refresh_all
     version_mod.refresh_all = function(_reg, langs, cache, on_done)
+      cache.parsers = cache.parsers or {}
       for _, lang in ipairs(langs) do
-        cache[lang] = {
+        cache.parsers[lang] = {
           latest_parser = 'main',
           latest_queries = 'main',
           checked_at = os.time(),
@@ -1308,8 +1309,9 @@ describe('local_parsers overrides registry', function()
     local version_mod = require('nvim-treesitter.version')
     local orig_refresh = version_mod.refresh_all
     version_mod.refresh_all = function(_reg, langs, cache, on_done)
+      cache.parsers = cache.parsers or {}
       for _, lang in ipairs(langs) do
-        cache[lang] = { latest_parser = 'main', latest_queries = 'main', checked_at = os.time() }
+        cache.parsers[lang] = { latest_parser = 'main', latest_queries = 'main', checked_at = os.time() }
       end
       vim.schedule(function()
         on_done(cache)

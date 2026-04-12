@@ -4,9 +4,9 @@
 -- Cache file: config.get_install_dir('registry')/registry-cache.lua
 -- Written as a plain Lua literal (dofile-loadable, human-readable in diffs).
 --
--- Cache schema (version = 1):
+-- Cache schema (version = 2):
 --   {
---     version  = 1,
+--     version  = 2,
 --     ttl      = 86400,      -- seconds
 --     parsers  = {
 --       [lang] = {
@@ -35,7 +35,7 @@ local M = {}
 -- Constants
 -- ---------------------------------------------------------------------------
 
-local CACHE_VERSION = 1
+local CACHE_VERSION = 2
 local DEFAULT_TTL = 86400 -- 24 hours
 
 -- ---------------------------------------------------------------------------
@@ -127,6 +127,24 @@ function M.save(cache)
   end
   file:write(content)
   file:close()
+end
+
+--- Delete the version cache file, forcing a full refresh on next load.
+---@return boolean ok  true if file was removed or did not exist
+function M.clear()
+  local cp = cache_path()
+  local stat = vim.uv.fs_stat(cp)
+  if stat then
+    local ok, err = os.remove(cp)
+    if not ok then
+      vim.notify(
+        'nvim-treesitter: could not remove cache file ' .. cp .. ': ' .. tostring(err),
+        vim.log.levels.WARN
+      )
+      return false
+    end
+  end
+  return true
 end
 
 -- ---------------------------------------------------------------------------

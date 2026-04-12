@@ -563,7 +563,12 @@ local function install_one(lang, entry, versions, install_dir, cache_dir, _opts)
     -- parser_manifest.parser_version pins an exact tag/SHA that the queries
     -- maintainer has verified against; prefer it over whatever happens to be
     -- latest on the parser repo right now.
-    local parser_ref = parser_manifest.parser_version or versions.latest_parser or 'main'
+    -- IMPORTANT: do NOT fall back to 'main' — that produces a GitHub API JSON
+    -- response instead of a tarball, and the stale hash would be cached forever.
+    local parser_ref = parser_manifest.parser_version or versions.latest_parser
+    if not parser_ref then
+      return logger:error('Could not determine version for %s parser (no tag/SHA found)', lang)
+    end
     -- self_contained uses source.url; external_queries uses source.parser_url
     local parser_url = source.parser_url or source.url
     local project_dir = fs.joinpath(cache_dir, project_name)
