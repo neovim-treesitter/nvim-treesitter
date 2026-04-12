@@ -46,6 +46,7 @@ jobs:
         env:
           PLENARY: .test-deps/plenary.nvim
           REGISTRY: .test-deps/treesitter-parser-registry
+          GITHUB_TOKEN: ${{ github.token }}
         run: $NVIM --clean -u scripts/minimal_init.lua -l scripts/install-parsers.lua --max-jobs=10
 
       - if: inputs.type == 'generate'
@@ -53,6 +54,7 @@ jobs:
         env:
           PLENARY: .test-deps/plenary.nvim
           REGISTRY: .test-deps/treesitter-parser-registry
+          GITHUB_TOKEN: ${{ github.token }}
         run: $NVIM --clean -u scripts/minimal_init.lua -l scripts/install-parsers.lua --generate --max-jobs=2
 
       - name: Check parsers

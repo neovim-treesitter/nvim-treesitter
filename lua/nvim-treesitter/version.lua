@@ -168,11 +168,17 @@ function M.refresh_all(registry, langs, cache, on_done, max_concurrency)
           -- If both are nil (e.g. transient network error or rate-limit)
           -- leave the entry stale so the next install retries the lookup.
           if parser_ver or queries_ver then
-            parsers[lang] = vim.tbl_extend('force', parsers[lang] or {}, {
-              latest_parser = parser_ver,
-              latest_queries = queries_ver,
-              checked_at = os.time(),
-            })
+            -- Build update table with only non-nil versions so that a
+            -- partial success (one resolved, one failed) does not overwrite
+            -- a previously cached value with nil.
+            local update = { checked_at = os.time() }
+            if parser_ver then
+              update.latest_parser = parser_ver
+            end
+            if queries_ver then
+              update.latest_queries = queries_ver
+            end
+            parsers[lang] = vim.tbl_extend('force', parsers[lang] or {}, update)
           end
           sem.release()
           finish()
