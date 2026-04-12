@@ -626,8 +626,15 @@ local function install_one(lang, entry, versions, install_dir, cache_dir, _opts)
             shared_dir
           )
           if err then
-            downloading[dl_key] = nil
-            return err
+            -- Tarball failed (e.g. non-gzip response) — fall back to git clone.
+            logger:debug('Tarball failed, falling back to git clone: %s', err)
+            rmpath(shared_dir)
+            a.schedule()
+            err = do_git_clone(logger, parser_url, parser_ref, shared_dir)
+            if err then
+              downloading[dl_key] = nil
+              return err
+            end
           end
         else
           local err = do_git_clone(logger, parser_url, parser_ref, shared_dir)
@@ -640,6 +647,22 @@ local function install_one(lang, entry, versions, install_dir, cache_dir, _opts)
       end
       -- Use the shared dir (either we downloaded it or another coroutine did).
       project_dir = downloading[dl_key] --[[@as string]]
+
+      -- For self_contained repos, read parser.json from the repo root.
+      -- The external_queries path reads it from the queries repo; self_contained
+      -- repos carry the same metadata (generate flags, inject_deps, queries_dir)
+      -- alongside the grammar itself.
+      if stype == 'self_contained' then
+        local manifest_path = fs.joinpath(project_dir, 'parser.json')
+        if uv.fs_stat(manifest_path) then
+          local ok, data =
+            pcall(fn.json_decode, table.concat(fn.readfile(manifest_path) --[[@as table]], '\n'))
+          if ok and type(data) == 'table' then
+            ---@cast data table
+            parser_manifest = vim.tbl_extend('keep', entry.parser_manifest or {}, data)
+          end
+        end
+      end
 
       local compile_loc = project_dir
       local location = source.parser_location or source.location
@@ -871,7 +894,7 @@ M.install = a.async(function(languages, opts)
   if #stale > 0 then
     local version_mod = require('nvim-treesitter.version')
     a.await(1, function(cb)
-      version_mod.refresh_all(registry, stale, cache, cb)
+      version_mod.refresh_all(registry.loaded, stale, cache, cb)
     end)
   end
 
@@ -1026,7 +1049,7 @@ M.update = a.async(function(languages, opts)
     log.info('Checking versions for %d parser(s)...', #stale)
     a.schedule()
     a.await(1, function(cb)
-      version_mod.refresh_all(registry, stale, cache, cb)
+      version_mod.refresh_all(registry.loaded, stale, cache, cb)
     end)
     log.info('Version check complete')
     a.schedule()

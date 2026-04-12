@@ -4,16 +4,17 @@ on:
   push:
     branches: [main]
     paths:
-      - "{{QUERIES_DIR}}/{{LANG}}/**"
+      - "{{QUERIES_DIR}}/**"
+      - "tests/**"
+      - "parser.json"
   pull_request:
     branches: [main]
     paths:
-      - "{{QUERIES_DIR}}/{{LANG}}/**"
+      - "{{QUERIES_DIR}}/**"
+      - "tests/**"
+      - "parser.json"
   workflow_dispatch:
 
 jobs:
   validate:
     uses: neovim-treesitter/.github/.github/workflows/self-contained-validate.yml@main
-    with:
-      lang: "{{LANG}}"
-      queries-dir: "{{QUERIES_DIR}}"

@@ -164,11 +164,16 @@ function M.refresh_all(registry, langs, cache, on_done, max_concurrency)
       local function inner_finish()
         inner_done = inner_done + 1
         if inner_done == 2 then
-          parsers[lang] = vim.tbl_extend('force', parsers[lang] or {}, {
-            latest_parser = parser_ver,
-            latest_queries = queries_ver,
-            checked_at = os.time(),
-          })
+          -- Only update checked_at when at least one version was resolved.
+          -- If both are nil (e.g. transient network error or rate-limit)
+          -- leave the entry stale so the next install retries the lookup.
+          if parser_ver or queries_ver then
+            parsers[lang] = vim.tbl_extend('force', parsers[lang] or {}, {
+              latest_parser = parser_ver,
+              latest_queries = queries_ver,
+              checked_at = os.time(),
+            })
+          end
           sem.release()
           finish()
         end

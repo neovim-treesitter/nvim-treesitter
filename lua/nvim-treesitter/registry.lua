@@ -26,8 +26,11 @@ local M = {}
 -- Constants (vendored from treesitter-registry shim)
 -- ---------------------------------------------------------------------------
 
+-- Use the GitHub Contents API rather than raw.githubusercontent.com so that
+-- GITHUB_TOKEN auth is honoured (raising rate limits from 60 to 5 000/hr).
+-- The Accept header tells the API to return the raw file, not JSON metadata.
 local REGISTRY_URL =
-  'https://raw.githubusercontent.com/neovim-treesitter/treesitter-parser-registry/main/registry.json'
+  'https://api.github.com/repos/neovim-treesitter/treesitter-parser-registry/contents/registry.json?ref=main'
 
 -- 7-day TTL — registry is stable (new langs added rarely).
 local REGISTRY_TTL = 604800
@@ -121,8 +124,17 @@ function M.load(callback, opts)
 
   -- ── Fetch a fresh copy ──────────────────────────────────────────────────
   local curl = require('plenary.curl')
+  -- Request raw file content from the Contents API (not the JSON envelope).
+  local headers = {
+    accept = 'application/vnd.github.raw+json',
+    ['x-github-api-version'] = '2022-11-28',
+  }
+  local token = vim.env.GITHUB_TOKEN
+  if token and token ~= '' then
+    headers['authorization'] = 'Bearer ' .. token
+  end
   curl.get(REGISTRY_URL, {
-    headers = { accept = 'application/json' },
+    headers = headers,
     timeout = 15000,
     callback = vim.schedule_wrap(function(response)
       if response.status ~= 200 then

@@ -9,8 +9,9 @@
 -- plenary.curl instead of raw vim.system curl invocations.
 --
 -- Version check strategy per host:
---   github.com  → GitHub REST API (releases/tags endpoints, no auth needed for
---                 public repos, generous rate limit vs git ls-remote)
+--   github.com  → GitHub REST API (releases/tags endpoints; GITHUB_TOKEN is
+--                 sent as Bearer auth when set, raising rate limits from
+--                 60 → 5 000 req/hr for public repos)
 --   gitlab.com  → GitLab REST API
 --   others      → git ls-remote fallback (universal, no API token needed)
 
@@ -30,6 +31,34 @@ local function owner_repo(url)
     repo = repo:gsub('%.git$', '')
   end
   return owner, repo
+end
+
+--- Return the GITHUB_TOKEN from the environment, or nil when unset / blank.
+--- This is optional — all endpoints work without it for public repos, but
+--- supplying the token raises the GitHub API rate limit from 60 → 5 000 req/hr
+--- and avoids throttling when many parsers are checked in quick succession.
+---@return string?
+local function github_token()
+  local t = vim.env.GITHUB_TOKEN
+  if t and t ~= '' then
+    return t
+  end
+  return nil
+end
+
+--- Build the standard GitHub API headers.
+--- Includes Authorization: Bearer when a GITHUB_TOKEN is available.
+---@return table<string,string>
+local function github_headers()
+  local h = {
+    accept = 'application/vnd.github+json',
+    ['x-github-api-version'] = '2022-11-28',
+  }
+  local token = github_token()
+  if token then
+    h['authorization'] = 'Bearer ' .. token
+  end
+  return h
 end
 
 --- HTTP GET via plenary.curl; calls callback(body, err).
@@ -98,8 +127,8 @@ end
 
 -- ---------------------------------------------------------------------------
 -- GitHub adapter
--- Uses REST API v3 — no auth required for public repos.
--- Rate limit: 60 req/hour unauthenticated, 5000/hour with GITHUB_TOKEN.
+-- Uses REST API v3 — GITHUB_TOKEN is sent as Bearer auth when available,
+-- raising the rate limit from 60 to 5 000 req/hour for public repos.
 -- ---------------------------------------------------------------------------
 local github = {}
 
@@ -112,10 +141,7 @@ function github.latest_tag(url, callback)
 
   -- Try releases endpoint first (reflects official releases with semver tags)
   local api = string.format('https://api.github.com/repos/%s/%s/releases', owner, repo)
-  local headers = {
-    accept = 'application/vnd.github+json',
-    ['x-github-api-version'] = '2022-11-28',
-  }
+  local headers = github_headers()
 
   http_get(api, headers, function(body, err)
     if body then
@@ -157,10 +183,7 @@ function github.latest_head(url, branch, callback)
 
   local ref = branch or 'HEAD'
   local api = string.format('https://api.github.com/repos/%s/%s/commits/%s', owner, repo, ref)
-  local headers = {
-    accept = 'application/vnd.github+json',
-    ['x-github-api-version'] = '2022-11-28',
-  }
+  local headers = github_headers()
 
   http_get(api, headers, function(body, err)
     if not body then
@@ -182,6 +205,20 @@ function github.tarball_url(url, ref)
 end
 
 function github.raw_url(url, ref, path)
+  -- Prefer the GitHub Contents API over raw.githubusercontent.com.
+  -- The API respects GITHUB_TOKEN auth (raising rate limits) and works
+  -- uniformly in CI / behind firewalls that may block the CDN domain.
+  local owner, repo = owner_repo(url)
+  if owner then
+    return string.format(
+      'https://api.github.com/repos/%s/%s/contents/%s?ref=%s',
+      owner,
+      repo,
+      path,
+      ref
+    )
+  end
+  -- Fallback for non-standard URLs
   local raw = url:gsub('^https://github%.com/', 'https://raw.githubusercontent.com/')
   return raw .. '/' .. ref .. '/' .. path
 end
@@ -424,5 +461,8 @@ M.register('codeberg.org', {
     return url .. '/raw/branch/' .. ref .. '/' .. path
   end,
 })
+
+--- Expose the token helper so other modules (registry, install) can reuse it.
+M.github_token = github_token
 
 return M
