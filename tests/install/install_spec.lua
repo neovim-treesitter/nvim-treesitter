@@ -17,8 +17,8 @@
 --
 -- Mocking strategy
 -- ────────────────
--- * plenary.curl   — stubbed in package.loaded at file top so registry.lua
---                    never sees a missing module.
+-- * treesitter-registry.http — stubbed in package.loaded at file top so
+--                    registry.lua / hosts.lua never make real HTTP calls.
 -- * nvim-treesitter.registry — loaded fresh after stub; M.loaded injected
 --                    per-test; M.load wrapped to call cb via vim.schedule.
 -- * nvim-treesitter.version — refresh_all replaced per-test; calls on_done
@@ -36,24 +36,23 @@ do
   vim.opt.rtp:prepend(repo_root .. '/.test-deps/plenary.nvim')
 end
 
--- ── stub plenary.curl BEFORE registry.lua can require it ─────────────────────
--- registry.lua does `local curl = require('plenary.curl')` at module scope.
+-- ── stub treesitter-registry.http BEFORE registry.lua / hosts.lua can require it ──
 -- We place a stub in package.loaded before any require() for it can run.
-package.loaded['plenary.curl'] = {
-  get = function(_url, opts)
-    if opts and opts.output then
-      vim.fn.mkdir(vim.fn.fnamemodify(opts.output, ':h'), 'p')
-      local f = io.open(opts.output, 'w')
-      if f then
-        f:write('fake tarball')
-        f:close()
-      end
-    end
-    -- Must be asynchronous — see async machinery notes in file header
+package.loaded['treesitter-registry.http'] = {
+  get = function(_url, _opts, callback)
     vim.schedule(function()
-      if opts and opts.callback then
-        opts.callback({ status = 200, body = '' })
-      end
+      callback({ status = 200, body = '' }, nil)
+    end)
+  end,
+  download = function(_url, output, _opts, callback)
+    vim.fn.mkdir(vim.fn.fnamemodify(output, ':h'), 'p')
+    local f = io.open(output, 'w')
+    if f then
+      f:write('fake tarball')
+      f:close()
+    end
+    vim.schedule(function()
+      callback({ status = 200, body = '' }, nil)
     end)
   end,
 }
@@ -357,17 +356,18 @@ local function setup(ctx)
   ctx.orig_system = vim.system
   vim.system = make_system_stub()
 
-  -- 3. ensure plenary.curl stub is still in place (may be evicted between tests)
-  package.loaded['plenary.curl'] = {
-    get = function(_url, opts)
-      if opts and opts.output then
-        mkdir_p(vim.fn.fnamemodify(opts.output, ':h'))
-        write_file(opts.output, 'fake tarball')
-      end
+  -- 3. ensure http stub is still in place (may be evicted between tests)
+  package.loaded['treesitter-registry.http'] = {
+    get = function(_url, _opts, callback)
       vim.schedule(function()
-        if opts and opts.callback then
-          opts.callback({ status = 200, body = '' })
-        end
+        callback({ status = 200, body = '' }, nil)
+      end)
+    end,
+    download = function(_url, output, _opts, callback)
+      mkdir_p(vim.fn.fnamemodify(output, ':h'))
+      write_file(output, 'fake tarball')
+      vim.schedule(function()
+        callback({ status = 200, body = '' }, nil)
       end)
     end,
   }
@@ -730,19 +730,20 @@ describe('install external_queries', function()
   end)
 
   it('installs parser and queries, writing both versions to cache', function()
-    -- Track curl download calls
+    -- Track http download calls
     local curl_calls = 0
-    package.loaded['plenary.curl'] = {
-      get = function(_url, opts)
-        curl_calls = curl_calls + 1
-        if opts and opts.output then
-          mkdir_p(vim.fn.fnamemodify(opts.output, ':h'))
-          write_file(opts.output, 'fake tarball')
-        end
+    package.loaded['treesitter-registry.http'] = {
+      get = function(_url, _opts, callback)
         vim.schedule(function()
-          if opts and opts.callback then
-            opts.callback({ status = 200, body = '' })
-          end
+          callback({ status = 200, body = '' }, nil)
+        end)
+      end,
+      download = function(_url, output, _opts, callback)
+        curl_calls = curl_calls + 1
+        mkdir_p(vim.fn.fnamemodify(output, ':h'))
+        write_file(output, 'fake tarball')
+        vim.schedule(function()
+          callback({ status = 200, body = '' }, nil)
         end)
       end,
     }
@@ -797,7 +798,7 @@ describe('install external_queries', function()
     -- Both parser tarball AND queries tarball downloads must happen (>= 2 curl calls)
     assert.True(
       curl_calls >= 2,
-      'plenary.curl.get must be called at least twice (parser + queries tarballs)'
+      'http.download must be called at least twice (parser + queries tarballs)'
     )
   end)
 end)
@@ -863,17 +864,18 @@ describe('install queries_only', function()
     local build_calls = 0
     local curl_calls = 0
 
-    package.loaded['plenary.curl'] = {
-      get = function(_url, opts)
-        curl_calls = curl_calls + 1
-        if opts and opts.output then
-          mkdir_p(vim.fn.fnamemodify(opts.output, ':h'))
-          write_file(opts.output, 'fake tarball')
-        end
+    package.loaded['treesitter-registry.http'] = {
+      get = function(_url, _opts, callback)
         vim.schedule(function()
-          if opts and opts.callback then
-            opts.callback({ status = 200, body = '' })
-          end
+          callback({ status = 200, body = '' }, nil)
+        end)
+      end,
+      download = function(_url, output, _opts, callback)
+        curl_calls = curl_calls + 1
+        mkdir_p(vim.fn.fnamemodify(output, ':h'))
+        write_file(output, 'fake tarball')
+        vim.schedule(function()
+          callback({ status = 200, body = '' }, nil)
         end)
       end,
     }
@@ -932,7 +934,7 @@ describe('install queries_only', function()
     )
 
     -- At least one curl call for the queries tarball download
-    assert.True(curl_calls > 0, 'plenary.curl.get must be called for the queries tarball')
+    assert.True(curl_calls > 0, 'http.download must be called for the queries tarball')
   end)
 end)
 
@@ -960,7 +962,7 @@ end)
 -- matches the field name used in the current install.lua implementation.
 --
 -- For type='local' the install pipeline calls `do_compile` in place (no curl).
--- For type='self_contained' the pipeline downloads via plenary.curl then compiles.
+-- For type='self_contained' the pipeline downloads via http.download then compiles.
 -- ─────────────────────────────────────────────────────────────────────────────
 
 -- Fake language names for local_parsers tests — distinct from the LANG constant
@@ -1054,16 +1056,16 @@ describe('local_parsers type=local', function()
   end)
 
   it('installs from local path and copies queries; never calls curl', function()
-    -- Track whether plenary.curl.get was called
+    -- Track whether http.download was called
     local curl_calls = 0
-    package.loaded['plenary.curl'] = vim.tbl_extend('force', package.loaded['plenary.curl'], {
-      get = function(_url, opts)
+    package.loaded['treesitter-registry.http'] = vim.tbl_extend('force', package.loaded['treesitter-registry.http'], {
+      download = function(_url, output, _opts, callback)
         curl_calls = curl_calls + 1
         -- Still behave like the stub so the pipeline does not stall
+        mkdir_p(vim.fn.fnamemodify(output, ':h'))
+        write_file(output, 'fake tarball')
         vim.schedule(function()
-          if opts and opts.callback then
-            opts.callback({ status = 200, body = '' })
-          end
+          callback({ status = 200, body = '' }, nil)
         end)
       end,
     })
@@ -1106,8 +1108,8 @@ describe('local_parsers type=local', function()
     -- tree-sitter build must have been called exactly once
     assert.True(build_calls > 0, 'tree-sitter build must run for type=local')
 
-    -- plenary.curl.get must NOT have been called for a local type
-    eq(0, curl_calls, 'plenary.curl.get must not be called for type=local')
+    -- http.download must NOT have been called for a local type
+    eq(0, curl_calls, 'http.download must not be called for type=local')
   end)
 end)
 
@@ -1149,21 +1151,21 @@ describe('local_parsers type=self_contained', function()
     teardown(ctx)
   end)
 
-  it('fetches from URL via plenary.curl and creates parser .so', function()
+  it('fetches from URL via http.download and creates parser .so', function()
     local curl_calls = 0
-    local orig_curl_get = package.loaded['plenary.curl'].get
-    package.loaded['plenary.curl'] = {
-      get = function(url, opts)
+    package.loaded['treesitter-registry.http'] = {
+      get = function(_url, _opts, callback)
+        vim.schedule(function()
+          callback({ status = 200, body = '' }, nil)
+        end)
+      end,
+      download = function(_url, output, _opts, callback)
         curl_calls = curl_calls + 1
         -- Write a fake tarball so the extraction step has a file
-        if opts and opts.output then
-          mkdir_p(vim.fn.fnamemodify(opts.output, ':h'))
-          write_file(opts.output, 'fake tarball')
-        end
+        mkdir_p(vim.fn.fnamemodify(output, ':h'))
+        write_file(output, 'fake tarball')
         vim.schedule(function()
-          if opts and opts.callback then
-            opts.callback({ status = 200, body = '' })
-          end
+          callback({ status = 200, body = '' }, nil)
         end)
       end,
     }
@@ -1213,8 +1215,8 @@ describe('local_parsers type=self_contained', function()
       'parser.so must exist in install_dir after self_contained install'
     )
 
-    -- plenary.curl.get must have been called (this is NOT a local-path install)
-    assert.True(curl_calls > 0, 'plenary.curl.get must be called for type=self_contained')
+    -- http.download must have been called (this is NOT a local-path install)
+    assert.True(curl_calls > 0, 'http.download must be called for type=self_contained')
 
     -- tree-sitter build must have been called
     assert.True(build_calls > 0, 'tree-sitter build must run for type=self_contained')
@@ -1292,15 +1294,18 @@ describe('local_parsers overrides registry', function()
       return base_stub(cmd, opts, on_exit)
     end
 
-    -- Track curl calls — they should NOT happen for type=local
+    -- Track http calls — they should NOT happen for type=local
     local curl_calls = 0
-    package.loaded['plenary.curl'] = {
-      get = function(_url, opts)
+    package.loaded['treesitter-registry.http'] = {
+      get = function(_url, _opts, callback)
+        vim.schedule(function()
+          callback({ status = 200, body = '' }, nil)
+        end)
+      end,
+      download = function(_url, output, _opts, callback)
         curl_calls = curl_calls + 1
         vim.schedule(function()
-          if opts and opts.callback then
-            opts.callback({ status = 200, body = '' })
-          end
+          callback({ status = 200, body = '' }, nil)
         end)
       end,
     }
@@ -1326,7 +1331,7 @@ describe('local_parsers overrides registry', function()
     assert.True(ok, 'install should succeed when local_parsers overrides registry')
 
     -- No curl call — the local_parsers entry (type=local) was used, not the registry URL
-    eq(0, curl_calls, 'plenary.curl.get must not be called when local_parsers entry is type=local')
+    eq(0, curl_calls, 'http.download must not be called when local_parsers entry is type=local')
 
     -- At least one tree-sitter build call must have used local_src_dir3 as cwd
     local used_local_path = false

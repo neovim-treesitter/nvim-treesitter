@@ -7,6 +7,7 @@ end
 -- Test dependencies passed as env vars by the Makefile
 prepend_rtp(os.getenv('PLENARY'))
 prepend_rtp(os.getenv('PLENTEST'))
+prepend_rtp(os.getenv('REGISTRY'))
 
 -- Ensure the nvim-treesitter repo itself is in rtp so that plugin/ and lua/
 -- modules are resolvable when tests are run from the repo root.

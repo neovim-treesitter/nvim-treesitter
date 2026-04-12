@@ -18,7 +18,7 @@
 ---                                   M.get_installed, M.set_installed
 ---   nvim-treesitter.queries_resolver M.resolve(lang, install_dir, cb)
 ---
---- HTTP: plenary.curl (never raw curl / vim.system for HTTP)
+--- HTTP: treesitter-registry.http (vim.system + curl binary)
 --- Build: vim.system (tree-sitter CLI)
 
 local fn = vim.fn
@@ -150,9 +150,9 @@ local function system(cmd, opts)
   return r
 end
 
--- ── plenary.curl wrapper ──────────────────────────────────────────────────────
--- All HTTP downloads go through here.  plenary.curl is callback-based so we
--- wrap it with a.awrap to make it await-able.
+-- ── HTTP download wrapper ─────────────────────────────────────────────────────
+-- All HTTP downloads go through here.  http.download is callback-based so we
+-- wrap it with a.await to make it coroutine-awaitable.
 
 ---@async
 ---@param url string
@@ -160,8 +160,8 @@ end
 ---@return { status: integer, body: string }? result, string? err
 local function curl_download(url, output_path)
   log.trace('curl_download %s -> %s', url, output_path)
-  local curl = require('plenary.curl')
-  local raw_args = { '-L', '--retry', '3', '--fail', '--show-error' }
+  local http = require('treesitter-registry.http')
+  local headers = {}
   -- GitHub API tarball endpoint needs the Accept header so the API returns a
   -- 302 redirect to the pre-signed codeload URL instead of JSON metadata.
   -- NOTE: Do NOT send Authorization here.  The GITHUB_TOKEN in Actions is an
@@ -170,21 +170,12 @@ local function curl_download(url, output_path)
   -- gzip) for tokens that don't cover the target repo.  Public repos don't
   -- need auth at all, so omitting it is both simpler and correct.
   if url:match('api%.github%.com') then
-    raw_args[#raw_args + 1] = '-H'
-    raw_args[#raw_args + 1] = 'Accept: application/vnd.github+json'
+    headers['accept'] = 'application/vnd.github+json'
   end
   local result, err = a.await(1, function(cb)
-    curl.get(url, {
-      output = output_path,
-      -- follow redirects, retry on transient failures
-      raw = raw_args,
-      callback = function(res)
-        cb(res, nil)
-      end,
-      on_error = function(e)
-        cb(nil, tostring(e))
-      end,
-    })
+    http.download(url, output_path, { headers = headers }, function(res, dl_err)
+      cb(res, dl_err)
+    end)
   end)
   return result, err
 end
@@ -1024,10 +1015,10 @@ M.update = a.async(function(languages, opts)
     languages = 'all'
   end
 
-  -- 1. Load registry (may require a network fetch — notify the user)
+  -- 1. Load registry from the locally installed registry plugin
   local registry = require('nvim-treesitter.registry')
   if not registry.loaded then
-    log.info('Fetching parser registry...')
+    log.info('Loading parser registry...')
     a.schedule()
   end
   a.await(1, function(cb)

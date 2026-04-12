@@ -74,7 +74,7 @@ end
 -- Additionally register any filetype mappings declared in registry entries.
 -- Registry loading is asynchronous; mappings that duplicate the static table
 -- above are harmless (register is idempotent).
--- Use pcall so that a missing registry module (e.g. plenary not in rtp yet)
+-- Use pcall so that a missing registry plugin
 -- does not prevent the static registrations above from taking effect.
 local ok, registry = pcall(require, 'nvim-treesitter.registry')
 if ok then

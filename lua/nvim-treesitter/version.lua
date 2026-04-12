@@ -3,14 +3,14 @@
 --
 -- Uses the vendored hosts adapter at:
 --   lua/nvim-treesitter/hosts.lua
--- which itself uses plenary.curl for all HTTP traffic.
+-- which itself uses treesitter-registry/http.lua (vim.system + curl) for all HTTP traffic.
 --
 -- Public API:
 --   M.latest_parser(lang, source, callback)
 --   M.latest_queries(lang, source, callback)
 --   M.refresh_all(registry, langs, cache, on_done)
 
-local hosts = require('nvim-treesitter.hosts')
+local hosts = require('treesitter-registry.hosts')
 
 local M = {}
 

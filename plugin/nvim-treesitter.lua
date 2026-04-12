@@ -5,7 +5,8 @@
 -- install.lua API.
 --
 -- Requires:
---   nvim-lua/plenary.nvim  (used by install.lua for HTTP via plenary.curl)
+--   neovim-treesitter/treesitter-parser-registry  (HTTP + host adapters)
+--   curl binary  (used by treesitter-registry.http for all HTTP downloads)
 --
 -- Commands:
 --   :TSInstall[!] {lang...}    install; bang = force reinstall
@@ -18,6 +19,17 @@ if vim.g.loaded_nvim_treesitter then
   return
 end
 vim.g.loaded_nvim_treesitter = true
+
+-- ── dependency check ──────────────────────────────────────────────────────────
+local ok, _ = pcall(require, 'treesitter-registry.http')
+if not ok then
+  vim.notify(
+    '[nvim-treesitter] Missing required dependency: neovim-treesitter/treesitter-parser-registry\n'
+      .. "Add it to your plugin manager, e.g.:\n"
+      .. "  dependencies = { 'neovim-treesitter/treesitter-parser-registry' }",
+    vim.log.levels.ERROR
+  )
+end
 
 local api = vim.api
 
@@ -170,45 +182,21 @@ end, {
   desc = 'View nvim-treesitter log messages',
 })
 
--- ── :TSRegistryUpdate ─────────────────────────────────────────────────────────
--- Force a fresh fetch of the remote registry JSON, bypassing the 7-day TTL.
-
-api.nvim_create_user_command('TSRegistryUpdate', function()
-  vim.schedule(function()
-    local registry = require('nvim-treesitter.registry')
-    vim.notify('[nvim-treesitter] Fetching registry...', vim.log.levels.INFO)
-    registry.load(function(_, err)
-      if err then
-        vim.notify('[nvim-treesitter] Registry update failed: ' .. err, vim.log.levels.ERROR)
-      else
-        vim.notify('[nvim-treesitter] Registry updated', vim.log.levels.INFO)
-      end
-    end, { force = true })
-  end)
-end, {
-  desc = 'Force refresh the treesitter parser registry',
-})
-
 -- ── :TSCacheClear ─────────────────────────────────────────────────────────────
--- Clear the version cache and registry cache so the next :TSInstall or
--- :TSUpdate will re-fetch versions from the network.
+-- Clear the version cache so the next :TSInstall or :TSUpdate will re-fetch
+-- version info from GitHub.  The registry itself is read from the locally
+-- installed plugin — update it via your package manager.
 
 api.nvim_create_user_command('TSCacheClear', function()
   vim.schedule(function()
     local cache = require('nvim-treesitter.cache')
-    local registry = require('nvim-treesitter.registry')
     local cleared = cache.clear()
-    -- Also force a fresh registry fetch
-    registry.load(function(_, err)
-      if cleared then
-        vim.notify('[nvim-treesitter] Version cache cleared; registry refreshed'
-          .. (err and (' (with error: ' .. err .. ')') or ''),
-          err and vim.log.levels.WARN or vim.log.levels.INFO)
-      else
-        vim.notify('[nvim-treesitter] Failed to clear cache', vim.log.levels.ERROR)
-      end
-    end, { force = true })
+    if cleared then
+      vim.notify('[nvim-treesitter] Version cache cleared', vim.log.levels.INFO)
+    else
+      vim.notify('[nvim-treesitter] No cache file to clear', vim.log.levels.INFO)
+    end
   end)
 end, {
-  desc = 'Clear all nvim-treesitter caches and force a fresh registry fetch',
+  desc = 'Clear the nvim-treesitter version cache',
 })

@@ -38,19 +38,21 @@ jobs:
         run: |
           bash ./scripts/ci-install.sh
 
-      - name: Install plenary
-        run: make plenary
+      - name: Install test dependencies
+        run: make plenary registry
 
       - if: inputs.type == 'build'
         name: Compile parsers
         env:
           PLENARY: .test-deps/plenary.nvim
+          REGISTRY: .test-deps/treesitter-parser-registry
         run: $NVIM --clean -u scripts/minimal_init.lua -l scripts/install-parsers.lua --max-jobs=10
 
       - if: inputs.type == 'generate'
         name: Generate and compile parsers
         env:
           PLENARY: .test-deps/plenary.nvim
+          REGISTRY: .test-deps/treesitter-parser-registry
         run: $NVIM --clean -u scripts/minimal_init.lua -l scripts/install-parsers.lua --generate --max-jobs=2
 
       - name: Check parsers

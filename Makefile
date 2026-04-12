@@ -85,8 +85,9 @@ $(HLASSERT):
 	tar -xf $(HLASSERT_TARBALL) -C $@
 	rm -rf $(HLASSERT_TARBALL)
 
-PLENTEST := $(DEPDIR)/plentest.nvim
-PLENARY := $(DEPDIR)/plenary.nvim
+PLENTEST := $(CURDIR)/$(DEPDIR)/plentest.nvim
+PLENARY := $(CURDIR)/$(DEPDIR)/plenary.nvim
+REGISTRY := $(CURDIR)/$(DEPDIR)/treesitter-parser-registry
 
 .PHONY: plentest
 plentest: $(PLENTEST)
@@ -100,6 +101,12 @@ plenary: $(PLENARY)
 $(PLENARY):
 	git clone --filter=blob:none https://github.com/nvim-lua/plenary.nvim $(PLENARY)
 
+.PHONY: registry
+registry: $(REGISTRY)
+
+$(REGISTRY):
+	git clone --filter=blob:none https://github.com/neovim-treesitter/treesitter-parser-registry $(REGISTRY)
+
 # Isolated parser install directory — blown away by `make clean`.
 # Both install-parsers.lua and minimal_init.lua read this env var so that
 # parsers never touch the user's real ~/.local/share/nvim.
@@ -107,8 +114,8 @@ export TS_INSTALL_DIR ?= $(CURDIR)/$(DEPDIR)/parsers
 
 # Install all parsers into the isolated test directory.
 .PHONY: install-parsers
-install-parsers: $(NVIM) $(PLENARY)
-	PLENARY=$(PLENARY) $(NVIM_BIN) --headless --clean -u scripts/minimal_init.lua \
+install-parsers: $(NVIM) $(PLENARY) $(REGISTRY)
+	PLENARY=$(PLENARY) REGISTRY=$(REGISTRY) $(NVIM_BIN) --headless --clean -u scripts/minimal_init.lua \
 		-l scripts/install-parsers.lua -- --max-jobs=8
 
 # actual test targets
@@ -140,8 +147,8 @@ checkquery: $(TSQUERYLS)
 	$(TSQUERYLS)/ts_query_ls check runtime/queries
 
 .PHONY: tests
-tests: $(NVIM) $(HLASSERT) $(PLENTEST) $(PLENARY)
-	HLASSERT=$(HLASSERT)/highlight-assertions PLENTEST=$(PLENTEST) PLENARY=$(PLENARY) \
+tests: $(NVIM) $(HLASSERT) $(PLENTEST) $(PLENARY) $(REGISTRY)
+	HLASSERT=$(HLASSERT)/highlight-assertions PLENTEST=$(PLENTEST) PLENARY=$(PLENARY) REGISTRY=$(REGISTRY) \
 		TS_INSTALL_DIR=$(TS_INSTALL_DIR) \
 		$(NVIM_BIN) --headless --clean -u scripts/minimal_init.lua \
 		-c "lua require('plentest').test_directory('tests/$(TESTS)', { minimal_init = './scripts/minimal_init.lua' })"
