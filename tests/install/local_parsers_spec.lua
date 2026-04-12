@@ -270,16 +270,17 @@ describe('local_parsers type=local', function()
 
   it('installs from local path and copies queries; never calls curl', function()
     local curl_calls = 0
-    package.loaded['treesitter-registry.http'] = vim.tbl_extend('force', package.loaded['treesitter-registry.http'], {
-      download = function(_url, output, _opts, callback)
-        curl_calls = curl_calls + 1
-        mkdir_p(vim.fn.fnamemodify(output, ':h'))
-        write_file(output, 'fake tarball')
-        vim.schedule(function()
-          callback({ status = 200, body = '' }, nil)
-        end)
-      end,
-    })
+    package.loaded['treesitter-registry.http'] =
+      vim.tbl_extend('force', package.loaded['treesitter-registry.http'], {
+        download = function(_url, output, _opts, callback)
+          curl_calls = curl_calls + 1
+          mkdir_p(vim.fn.fnamemodify(output, ':h'))
+          write_file(output, 'fake tarball')
+          vim.schedule(function()
+            callback({ status = 200, body = '' }, nil)
+          end)
+        end,
+      })
 
     local build_calls = 0
     local base_stub = make_system_stub()

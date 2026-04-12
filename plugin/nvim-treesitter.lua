@@ -25,7 +25,7 @@ local ok, _ = pcall(require, 'treesitter-registry.http')
 if not ok then
   vim.notify(
     '[nvim-treesitter] Missing required dependency: neovim-treesitter/treesitter-parser-registry\n'
-      .. "Add it to your plugin manager, e.g.:\n"
+      .. 'Add it to your plugin manager, e.g.:\n'
       .. "  dependencies = { 'neovim-treesitter/treesitter-parser-registry' }",
     vim.log.levels.ERROR
   )

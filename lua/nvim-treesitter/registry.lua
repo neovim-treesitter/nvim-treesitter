@@ -30,11 +30,11 @@ local M = {}
 --- Locate registry.json on the rtp (provided by the registry plugin).
 ---@return string?
 local function find_registry_json()
-    local found = vim.api.nvim_get_runtime_file('registry.json', false)
-    if found and #found > 0 then
-        return found[1]
-    end
-    return nil
+  local found = vim.api.nvim_get_runtime_file('registry.json', false)
+  if found and #found > 0 then
+    return found[1]
+  end
+  return nil
 end
 
 --- Decode a file path as JSON.  Strips the `$schema` key (JSON Schema
@@ -43,17 +43,17 @@ end
 ---@return table?  data
 ---@return string? err
 local function decode_registry(path)
-    local ok, lines = pcall(vim.fn.readfile, path)
-    if not ok or #lines == 0 then
-        return nil, 'could not read ' .. path
-    end
-    local dok, data = pcall(vim.json.decode, table.concat(lines, '\n'))
-    if not dok or type(data) ~= 'table' then
-        return nil, 'JSON decode failed for ' .. path
-    end
-    ---@cast data table
-    data['$schema'] = nil
-    return data, nil
+  local ok, lines = pcall(vim.fn.readfile, path)
+  if not ok or #lines == 0 then
+    return nil, 'could not read ' .. path
+  end
+  local dok, data = pcall(vim.json.decode, table.concat(lines, '\n'))
+  if not dok or type(data) ~= 'table' then
+    return nil, 'JSON decode failed for ' .. path
+  end
+  ---@cast data table
+  data['$schema'] = nil
+  return data, nil
 end
 
 -- ---------------------------------------------------------------------------
@@ -69,10 +69,10 @@ M.loaded = nil
 ---@param lang string
 ---@return table?
 function M.get(lang)
-    if not M.loaded then
-        return nil
-    end
-    return M.loaded[lang]
+  if not M.loaded then
+    return nil
+  end
+  return M.loaded[lang]
 end
 
 --- Load the registry from disk and invoke the callback with the result.
@@ -83,24 +83,24 @@ end
 ---@param callback  fun(registry: table?, err: string?)
 ---@param opts      table?   unused, reserved for future options
 function M.load(callback, opts)
-    _ = opts
+  _ = opts
 
-    local path = find_registry_json()
-    if not path then
-        return callback(
-            nil,
-            'nvim-treesitter: registry.json not found on rtp.\n'
-                .. 'Install the registry plugin: neovim-treesitter/treesitter-parser-registry'
-        )
-    end
+  local path = find_registry_json()
+  if not path then
+    return callback(
+      nil,
+      'nvim-treesitter: registry.json not found on rtp.\n'
+        .. 'Install the registry plugin: neovim-treesitter/treesitter-parser-registry'
+    )
+  end
 
-    local data, err = decode_registry(path)
-    if not data then
-        return callback(nil, 'nvim-treesitter: ' .. (err or 'unknown error loading registry'))
-    end
+  local data, err = decode_registry(path)
+  if not data then
+    return callback(nil, 'nvim-treesitter: ' .. (err or 'unknown error loading registry'))
+  end
 
-    M.loaded = data
-    callback(data, nil)
+  M.loaded = data
+  callback(data, nil)
 end
 
 return M

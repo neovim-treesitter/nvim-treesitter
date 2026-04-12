@@ -1058,17 +1058,18 @@ describe('local_parsers type=local', function()
   it('installs from local path and copies queries; never calls curl', function()
     -- Track whether http.download was called
     local curl_calls = 0
-    package.loaded['treesitter-registry.http'] = vim.tbl_extend('force', package.loaded['treesitter-registry.http'], {
-      download = function(_url, output, _opts, callback)
-        curl_calls = curl_calls + 1
-        -- Still behave like the stub so the pipeline does not stall
-        mkdir_p(vim.fn.fnamemodify(output, ':h'))
-        write_file(output, 'fake tarball')
-        vim.schedule(function()
-          callback({ status = 200, body = '' }, nil)
-        end)
-      end,
-    })
+    package.loaded['treesitter-registry.http'] =
+      vim.tbl_extend('force', package.loaded['treesitter-registry.http'], {
+        download = function(_url, output, _opts, callback)
+          curl_calls = curl_calls + 1
+          -- Still behave like the stub so the pipeline does not stall
+          mkdir_p(vim.fn.fnamemodify(output, ':h'))
+          write_file(output, 'fake tarball')
+          vim.schedule(function()
+            callback({ status = 200, body = '' }, nil)
+          end)
+        end,
+      })
 
     -- Wrap vim.system to count tree-sitter build calls; also create parser.so
     -- in the *local source dir* (where do_install_parser will look for it).
@@ -1316,7 +1317,8 @@ describe('local_parsers overrides registry', function()
     version_mod.refresh_all = function(_reg, langs, cache, on_done)
       cache.parsers = cache.parsers or {}
       for _, lang in ipairs(langs) do
-        cache.parsers[lang] = { latest_parser = 'main', latest_queries = 'main', checked_at = os.time() }
+        cache.parsers[lang] =
+          { latest_parser = 'main', latest_queries = 'main', checked_at = os.time() }
       end
       vim.schedule(function()
         on_done(cache)
