@@ -3,7 +3,7 @@
 --
 -- Uses the vendored hosts adapter at:
 --   lua/nvim-treesitter/hosts.lua
--- which itself uses plenary.curl for all HTTP traffic.
+-- which uses vim.net.request for HTTP traffic.
 --
 -- Public API:
 --   M.latest_parser(lang, source, callback)

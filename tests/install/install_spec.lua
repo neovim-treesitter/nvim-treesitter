@@ -17,8 +17,8 @@
 --
 -- Mocking strategy
 -- ────────────────
--- * plenary.curl   — stubbed in package.loaded at file top so registry.lua
---                    never sees a missing module.
+-- * vim.net.request — stubbed in package.loaded at file top so modules
+--                    never see a missing module.
 -- * nvim-treesitter.registry — loaded fresh after stub; M.loaded injected
 --                    per-test; M.load wrapped to call cb via vim.schedule.
 -- * nvim-treesitter.version — refresh_all replaced per-test; calls on_done
@@ -30,32 +30,30 @@
 --                    lose the entry.
 -- * queries_resolver.resolve — no-op stub (calls callback via vim.schedule).
 
--- ── add plenary.nvim to rtp (provides luassert) ──────────────────────────────
-do
-  local repo_root = vim.fn.fnamemodify(debug.getinfo(1, 'S').source:sub(2), ':p:h:h:h')
-  vim.opt.rtp:prepend(repo_root .. '/.test-deps/plenary.nvim')
-end
-
--- ── stub plenary.curl BEFORE registry.lua can require it ─────────────────────
--- registry.lua does `local curl = require('plenary.curl')` at module scope.
--- We place a stub in package.loaded before any require() for it can run.
-package.loaded['plenary.curl'] = {
-  get = function(_url, opts)
-    if opts and opts.output then
-      vim.fn.mkdir(vim.fn.fnamemodify(opts.output, ':h'), 'p')
-      local f = io.open(opts.output, 'w')
+-- ── stub vim.net.request BEFORE modules that use it can require it ─────────────
+-- modules use `vim.net.request()` at runtime, not require time, so we can
+-- inject a stub directly in package.loaded['vim.net'] or wrap the function.
+local curl_calls = 0
+local function make_vim_net_stub()
+  return function(url, opts, callback)
+    curl_calls = curl_calls + 1
+    if opts and opts.outpath then
+      vim.fn.mkdir(vim.fn.fnamemodify(opts.outpath, ':h'), 'p')
+      local f = io.open(opts.outpath, 'w')
       if f then
         f:write('fake tarball')
         f:close()
       end
     end
-    -- Must be asynchronous — see async machinery notes in file header
     vim.schedule(function()
-      if opts and opts.callback then
-        opts.callback({ status = 200, body = '' })
+      if callback then
+        callback(nil, { status = 200, body = '' })
       end
     end)
-  end,
+  end
+end
+package.loaded['vim.net'] = {
+  request = make_vim_net_stub(),
 }
 
 -- Clear any partially-loaded (broken) registry module so it re-requires cleanly
@@ -357,16 +355,17 @@ local function setup(ctx)
   ctx.orig_system = vim.system
   vim.system = make_system_stub()
 
-  -- 3. ensure plenary.curl stub is still in place (may be evicted between tests)
-  package.loaded['plenary.curl'] = {
-    get = function(_url, opts)
-      if opts and opts.output then
-        mkdir_p(vim.fn.fnamemodify(opts.output, ':h'))
-        write_file(opts.output, 'fake tarball')
+  -- 3. ensure vim.net.request stub is still in place (may be evicted between tests)
+  package.loaded['vim.net'] = {
+    request = function(url, opts, callback)
+      curl_calls = curl_calls + 1
+      if opts and opts.outpath then
+        mkdir_p(vim.fn.fnamemodify(opts.outpath, ':h'))
+        write_file(opts.outpath, 'fake tarball')
       end
       vim.schedule(function()
-        if opts and opts.callback then
-          opts.callback({ status = 200, body = '' })
+        if callback then
+          callback(nil, { status = 200, body = '' })
         end
       end)
     end,
@@ -730,18 +729,18 @@ describe('install external_queries', function()
   end)
 
   it('installs parser and queries, writing both versions to cache', function()
-    -- Track curl download calls
+    -- Track vim.net.request calls
     local curl_calls = 0
-    package.loaded['plenary.curl'] = {
-      get = function(_url, opts)
+    package.loaded['vim.net'] = {
+      request = function(url, opts, callback)
         curl_calls = curl_calls + 1
-        if opts and opts.output then
-          mkdir_p(vim.fn.fnamemodify(opts.output, ':h'))
-          write_file(opts.output, 'fake tarball')
+        if opts and opts.outpath then
+          mkdir_p(vim.fn.fnamemodify(opts.outpath, ':h'))
+          write_file(opts.outpath, 'fake tarball')
         end
         vim.schedule(function()
-          if opts and opts.callback then
-            opts.callback({ status = 200, body = '' })
+          if callback then
+            callback(nil, { status = 200, body = '' })
           end
         end)
       end,
@@ -797,7 +796,7 @@ describe('install external_queries', function()
     -- Both parser tarball AND queries tarball downloads must happen (>= 2 curl calls)
     assert.True(
       curl_calls >= 2,
-      'plenary.curl.get must be called at least twice (parser + queries tarballs)'
+      'vim.net.request must be called at least twice (parser + queries tarballs)'
     )
   end)
 end)
@@ -863,16 +862,16 @@ describe('install queries_only', function()
     local build_calls = 0
     local curl_calls = 0
 
-    package.loaded['plenary.curl'] = {
-      get = function(_url, opts)
+    package.loaded['vim.net'] = {
+      request = function(url, opts, callback)
         curl_calls = curl_calls + 1
-        if opts and opts.output then
-          mkdir_p(vim.fn.fnamemodify(opts.output, ':h'))
-          write_file(opts.output, 'fake tarball')
+        if opts and opts.outpath then
+          mkdir_p(vim.fn.fnamemodify(opts.outpath, ':h'))
+          write_file(opts.outpath, 'fake tarball')
         end
         vim.schedule(function()
-          if opts and opts.callback then
-            opts.callback({ status = 200, body = '' })
+          if callback then
+            callback(nil, { status = 200, body = '' })
           end
         end)
       end,
@@ -932,7 +931,7 @@ describe('install queries_only', function()
     )
 
     -- At least one curl call for the queries tarball download
-    assert.True(curl_calls > 0, 'plenary.curl.get must be called for the queries tarball')
+    assert.True(curl_calls > 0, 'vim.net.request must be called for the queries tarball')
   end)
 end)
 
@@ -959,8 +958,8 @@ end)
 -- NOTE: the field for the remote URL is `source.url` (not `source.parser_url`) — this
 -- matches the field name used in the current install.lua implementation.
 --
--- For type='local' the install pipeline calls `do_compile` in place (no curl).
--- For type='self_contained' the pipeline downloads via plenary.curl then compiles.
+-- For type='local' the install pipeline calls `do_compile` in place (no HTTP).
+-- For type='self_contained' the pipeline downloads via vim.net.request then compiles.
 -- ─────────────────────────────────────────────────────────────────────────────
 
 -- Fake language names for local_parsers tests — distinct from the LANG constant
@@ -1053,20 +1052,18 @@ describe('local_parsers type=local', function()
     teardown(ctx)
   end)
 
-  it('installs from local path and copies queries; never calls curl', function()
-    -- Track whether plenary.curl.get was called
+  it('installs from local path and copies queries; never calls vim.net.request', function()
+    -- Track whether vim.net.request was called
     local curl_calls = 0
-    package.loaded['plenary.curl'] = vim.tbl_extend('force', package.loaded['plenary.curl'], {
-      get = function(_url, opts)
-        curl_calls = curl_calls + 1
-        -- Still behave like the stub so the pipeline does not stall
-        vim.schedule(function()
-          if opts and opts.callback then
-            opts.callback({ status = 200, body = '' })
-          end
-        end)
-      end,
-    })
+    local orig_request = package.loaded['vim.net'].request
+    package.loaded['vim.net'].request = function(url, opts, callback)
+      curl_calls = curl_calls + 1
+      vim.schedule(function()
+        if callback then
+          callback(nil, { status = 200, body = '' })
+        end
+      end)
+    end
 
     -- Wrap vim.system to count tree-sitter build calls; also create parser.so
     -- in the *local source dir* (where do_install_parser will look for it).
@@ -1106,8 +1103,8 @@ describe('local_parsers type=local', function()
     -- tree-sitter build must have been called exactly once
     assert.True(build_calls > 0, 'tree-sitter build must run for type=local')
 
-    -- plenary.curl.get must NOT have been called for a local type
-    eq(0, curl_calls, 'plenary.curl.get must not be called for type=local')
+    -- vim.net.request must NOT have been called for a local type
+    eq(0, curl_calls, 'vim.net.request must not be called for type=local')
   end)
 end)
 
@@ -1149,24 +1146,22 @@ describe('local_parsers type=self_contained', function()
     teardown(ctx)
   end)
 
-  it('fetches from URL via plenary.curl and creates parser .so', function()
+  it('fetches from URL via vim.net.request and creates parser .so', function()
     local curl_calls = 0
-    local orig_curl_get = package.loaded['plenary.curl'].get
-    package.loaded['plenary.curl'] = {
-      get = function(url, opts)
-        curl_calls = curl_calls + 1
-        -- Write a fake tarball so the extraction step has a file
-        if opts and opts.output then
-          mkdir_p(vim.fn.fnamemodify(opts.output, ':h'))
-          write_file(opts.output, 'fake tarball')
+    local orig_request = package.loaded['vim.net'].request
+    package.loaded['vim.net'].request = function(url, opts, callback)
+      curl_calls = curl_calls + 1
+      -- Write a fake tarball so the extraction step has a file
+      if opts and opts.outpath then
+        mkdir_p(vim.fn.fnamemodify(opts.outpath, ':h'))
+        write_file(opts.outpath, 'fake tarball')
+      end
+      vim.schedule(function()
+        if callback then
+          callback(nil, { status = 200, body = '' })
         end
-        vim.schedule(function()
-          if opts and opts.callback then
-            opts.callback({ status = 200, body = '' })
-          end
-        end)
-      end,
-    }
+      end)
+    end
 
     -- The system stub already creates parser.so in cwd on 'tree-sitter build'
     -- and a fake extracted directory on 'tar'.  The queries_path 'nvim-queries'
@@ -1212,8 +1207,8 @@ describe('local_parsers type=self_contained', function()
       'parser.so must exist in install_dir after self_contained install'
     )
 
-    -- plenary.curl.get must have been called (this is NOT a local-path install)
-    assert.True(curl_calls > 0, 'plenary.curl.get must be called for type=self_contained')
+    -- vim.net.request must have been called (this is NOT a local-path install)
+    assert.True(curl_calls > 0, 'vim.net.request must be called for type=self_contained')
 
     -- tree-sitter build must have been called
     assert.True(build_calls > 0, 'tree-sitter build must run for type=self_contained')
@@ -1291,18 +1286,16 @@ describe('local_parsers overrides registry', function()
       return base_stub(cmd, opts, on_exit)
     end
 
-    -- Track curl calls — they should NOT happen for type=local
+    -- Track vim.net.request calls — they should NOT happen for type=local
     local curl_calls = 0
-    package.loaded['plenary.curl'] = {
-      get = function(_url, opts)
-        curl_calls = curl_calls + 1
-        vim.schedule(function()
-          if opts and opts.callback then
-            opts.callback({ status = 200, body = '' })
-          end
-        end)
-      end,
-    }
+    package.loaded['vim.net'].request = function(url, opts, callback)
+      curl_calls = curl_calls + 1
+      vim.schedule(function()
+        if callback then
+          callback(nil, { status = 200, body = '' })
+        end
+      end)
+    end
 
     -- stub version.refresh_all for LOCAL_LANG3
     local version_mod = require('nvim-treesitter.version')
@@ -1324,7 +1317,7 @@ describe('local_parsers overrides registry', function()
     assert.True(ok, 'install should succeed when local_parsers overrides registry')
 
     -- No curl call — the local_parsers entry (type=local) was used, not the registry URL
-    eq(0, curl_calls, 'plenary.curl.get must not be called when local_parsers entry is type=local')
+    eq(0, curl_calls, 'vim.net.request must not be called when local_parsers entry is type=local')
 
     -- At least one tree-sitter build call must have used local_src_dir3 as cwd
     local used_local_path = false

@@ -29,12 +29,10 @@ See the [neovim-treesitter org][org] for the full ecosystem.
 
 | Requirement | Version |
 |-------------|---------|
-| Neovim | 0.10.0 or later |
-| [nvim-lua/plenary.nvim][plenary] | latest |
+| Neovim | 0.12.0 or later |
 | [`tree-sitter` CLI][ts-cli] | 0.26.1 or later — install via your system package manager, **not npm** |
 | C compiler | see [cc requirements][cc] |
 
-[plenary]: https://github.com/nvim-lua/plenary.nvim
 [ts-cli]: https://github.com/tree-sitter/tree-sitter/blob/master/crates/cli/README.md
 [cc]: https://docs.rs/cc/latest/cc/#compile-time-requirements
 
@@ -51,7 +49,6 @@ See the [neovim-treesitter org][org] for the full ecosystem.
 ```lua
 {
   'nvim-treesitter/nvim-treesitter',
-  dependencies = { 'nvim-lua/plenary.nvim' },
   lazy = false,
   build = ':TSUpdate',
 }
@@ -62,8 +59,7 @@ See the [neovim-treesitter org][org] for the full ecosystem.
 
 ### Other plugin managers
 
-Ensure `nvim-lua/plenary.nvim` is installed as a dependency and add `:TSUpdate`
-as a post-install / post-update build step.
+Add `:TSUpdate` as a post-install / post-update build step.
 
 ---
 
