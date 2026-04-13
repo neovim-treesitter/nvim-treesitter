@@ -54,10 +54,7 @@ end
 function Logger:info(m, ...)
   local m1 = m:format(...)
   messages[#messages + 1] = { 'info', self.ctx, m1 }
-  local msg = { { mkpfx(self.ctx) .. ': ' .. m1, sev_to_hl.info } }
-  vim.schedule(function()
-    echo(msg, true, {})
-  end)
+  echo({ { mkpfx(self.ctx) .. ': ' .. m1, sev_to_hl.info } }, true, {})
 end
 
 ---@param m string
@@ -65,10 +62,7 @@ end
 function Logger:warn(m, ...)
   local m1 = m:format(...)
   messages[#messages + 1] = { 'warn', self.ctx, m1 }
-  local msg = { { mkpfx(self.ctx) .. ' warning: ' .. m1, sev_to_hl.warn } }
-  vim.schedule(function()
-    echo(msg, true, {})
-  end)
+  echo({ { mkpfx(self.ctx) .. ' warning: ' .. m1, sev_to_hl.warn } }, true, {})
 end
 
 ---@param m string
@@ -77,10 +71,7 @@ end
 function Logger:error(m, ...)
   local m1 = m:format(...)
   messages[#messages + 1] = { 'error', self.ctx, m1 }
-  local msg = { { mkpfx(self.ctx) .. ' error: ' .. m1, sev_to_hl.error } }
-  vim.schedule(function()
-    echo(msg, true, {})
-  end)
+  echo({ { mkpfx(self.ctx) .. ' error: ' .. m1, sev_to_hl.error } }, true, {})
   return m1
 end
 
