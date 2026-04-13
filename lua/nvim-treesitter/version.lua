@@ -21,14 +21,24 @@ local M = {}
 --- Choose between semver tag lookup and HEAD SHA lookup based on the
 --- `*_semver` flag in the registry source entry.
 ---
+--- When use_semver is true but the repo has no semver tags yet (e.g. a new
+--- query repo that hasn't been released), falls back to latest_head so the
+--- install can proceed using the HEAD SHA.
+---
 ---@param url         string
----@param use_semver  boolean   true  → latest_tag; false → latest_head
+---@param use_semver  boolean   true  → latest_tag (with HEAD fallback); false → latest_head
 ---@param branch      string?   branch hint for HEAD lookup
 ---@param callback    fun(version: string?, err: string?)
 local function resolve_version(url, use_semver, branch, callback)
   local adapter = hosts.for_url(url)
   if use_semver then
-    adapter.latest_tag(url, callback)
+    adapter.latest_tag(url, function(tag, err)
+      if tag then
+        return callback(tag, nil)
+      end
+      -- No semver tags found (e.g. repo not yet released) — fall back to HEAD.
+      adapter.latest_head(url, branch, callback)
+    end)
   else
     adapter.latest_head(url, branch, callback)
   end
