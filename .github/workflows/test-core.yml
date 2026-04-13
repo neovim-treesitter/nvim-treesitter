@@ -59,11 +59,15 @@ jobs:
         run: $NVIM --clean -u scripts/minimal_init.lua -l scripts/install-parsers.lua --generate --max-jobs=2
 
       - name: Check parsers
-        run: $NVIM -l ./scripts/check-parsers.lua
+        env:
+          REGISTRY: .test-deps/treesitter-parser-registry
+        run: $NVIM --clean -u scripts/minimal_init.lua -l ./scripts/check-parsers.lua
 
       - name: Check queries (nvim)
         if: ${{ matrix.os == 'windows-latest' }}
-        run: $NVIM -l ./scripts/check-queries.lua
+        env:
+          REGISTRY: .test-deps/treesitter-parser-registry
+        run: $NVIM --clean -u scripts/minimal_init.lua -l ./scripts/check-queries.lua
 
       - name: Check queries (tsqueryls)
         if: ${{ matrix.os != 'windows-latest' }}
