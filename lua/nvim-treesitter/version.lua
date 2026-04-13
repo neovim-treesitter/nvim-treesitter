@@ -192,7 +192,10 @@ function M.refresh_all(registry, langs, cache, on_done, max_concurrency)
         local same_repo = source.type == 'self_contained'
           or (source.parser_url or source.url) == (source.queries_url or source.url or source.parser_url)
 
-        M.latest_parser(lang, source, function(ver, _err)
+        M.latest_parser(lang, source, function(ver, err)
+          if not ver and err then
+            io.stderr:write(string.format('[nvim-treesitter/version] %s: parser version lookup failed: %s\n', lang, err))
+          end
           parser_ver = ver
           if same_repo then
             queries_ver = ver
@@ -202,7 +205,10 @@ function M.refresh_all(registry, langs, cache, on_done, max_concurrency)
         end)
 
         if not same_repo then
-          M.latest_queries(lang, source, function(ver, _err)
+          M.latest_queries(lang, source, function(ver, err)
+            if not ver and err then
+              io.stderr:write(string.format('[nvim-treesitter/version] %s: queries version lookup failed: %s\n', lang, err))
+            end
             queries_ver = ver
             inner_finish()
           end)
