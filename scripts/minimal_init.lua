@@ -5,7 +5,6 @@ local function prepend_rtp(path)
 end
 
 -- Test dependencies passed as env vars by the Makefile
-prepend_rtp(os.getenv('PLENARY'))
 prepend_rtp(os.getenv('PLENTEST'))
 prepend_rtp(os.getenv('REGISTRY'))
 

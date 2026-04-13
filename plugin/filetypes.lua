@@ -76,7 +76,7 @@ end
 -- above are harmless (register is idempotent).
 -- Use pcall so that a missing registry plugin
 -- does not prevent the static registrations above from taking effect.
-local ok, registry = pcall(require, 'nvim-treesitter.registry')
+local ok, registry = pcall(require, 'treesitter-registry')
 if ok then
   registry.load(function(reg)
     if not reg then

@@ -1,4 +1,4 @@
-local registry = require('nvim-treesitter.registry')
+local registry = require('treesitter-registry')
 local config = require('nvim-treesitter.config')
 local util = require('nvim-treesitter.util')
 local tsq = vim.treesitter.query

@@ -66,7 +66,7 @@ end
 --- Source of truth is the registry (registry.loaded) plus any local_parsers overrides.
 ---@return string[]
 function M.get_available()
-  local registry = require('nvim-treesitter.registry')
+  local registry = require('treesitter-registry')
   local languages = registry.loaded and vim.tbl_keys(registry.loaded) or {}
 
   for lang in pairs(M.get_local_parsers()) do

@@ -19,7 +19,7 @@
 -- ────────────────
 -- * treesitter-registry.http — stubbed in package.loaded at file top so
 --                    registry.lua / hosts.lua never make real HTTP calls.
--- * nvim-treesitter.registry — loaded fresh after stub; M.loaded injected
+-- * treesitter-registry — loaded fresh after stub; M.loaded injected
 --                    per-test; M.load wrapped to call cb via vim.schedule.
 -- * nvim-treesitter.version — refresh_all replaced per-test; calls on_done
 --                    via vim.schedule (required by the async coroutine machinery).
@@ -29,12 +29,6 @@
 --                    reload_parsers() (which clears package.loaded) does not
 --                    lose the entry.
 -- * queries_resolver.resolve — no-op stub (calls callback via vim.schedule).
-
--- ── add plenary.nvim to rtp (provides luassert) ──────────────────────────────
-do
-  local repo_root = vim.fn.fnamemodify(debug.getinfo(1, 'S').source:sub(2), ':p:h:h:h')
-  vim.opt.rtp:prepend(repo_root .. '/.test-deps/plenary.nvim')
-end
 
 -- ── stub treesitter-registry.http BEFORE registry.lua / hosts.lua can require it ──
 -- We place a stub in package.loaded before any require() for it can run.
@@ -58,7 +52,7 @@ package.loaded['treesitter-registry.http'] = {
 }
 
 -- Clear any partially-loaded (broken) registry module so it re-requires cleanly
-package.loaded['nvim-treesitter.registry'] = nil
+package.loaded['treesitter-registry'] = nil
 
 -- ── assertions / equality ─────────────────────────────────────────────────────
 local assert = require('luassert') ---@type Luassert
@@ -373,7 +367,7 @@ local function setup(ctx)
   }
 
   -- 4. inject fake registry entry; wrap registry.load so cb fires asynchronously
-  local registry = require('nvim-treesitter.registry')
+  local registry = require('treesitter-registry')
   ctx.orig_registry_loaded = registry.loaded
   ctx.orig_registry_load = registry.load
   if not registry.loaded then
@@ -405,7 +399,7 @@ local function teardown(ctx)
   vim.system = ctx.orig_system
 
   -- restore registry
-  local registry = require('nvim-treesitter.registry')
+  local registry = require('treesitter-registry')
   if registry.loaded then
     registry.loaded[LANG] = nil
   end
@@ -480,7 +474,7 @@ describe('install with no registry entry', function()
   before_each(function()
     setup(ctx)
     -- Remove LANG from the registry so registry.get(LANG) returns nil
-    local registry = require('nvim-treesitter.registry')
+    local registry = require('treesitter-registry')
     registry.loaded[LANG] = nil
   end)
   after_each(function()
@@ -701,7 +695,7 @@ describe('install external_queries', function()
     setup(ctx)
 
     -- Inject external_queries registry entry for EXT_Q_LANG
-    local registry = require('nvim-treesitter.registry')
+    local registry = require('treesitter-registry')
     registry.loaded[EXT_Q_LANG] = {
       source = {
         type = 'external_queries',
@@ -718,7 +712,7 @@ describe('install external_queries', function()
   end)
 
   after_each(function()
-    local registry = require('nvim-treesitter.registry')
+    local registry = require('treesitter-registry')
     if registry.loaded then
       registry.loaded[EXT_Q_LANG] = nil
     end
@@ -820,7 +814,7 @@ describe('install queries_only', function()
     setup(ctx)
 
     -- Inject queries_only registry entry for QO_LANG
-    local registry = require('nvim-treesitter.registry')
+    local registry = require('treesitter-registry')
     registry.loaded[QO_LANG] = {
       source = {
         type = 'queries_only',
@@ -848,7 +842,7 @@ describe('install queries_only', function()
   end)
 
   after_each(function()
-    local registry = require('nvim-treesitter.registry')
+    local registry = require('treesitter-registry')
     if registry.loaded then
       registry.loaded[QO_LANG] = nil
     end
@@ -1241,7 +1235,7 @@ describe('local_parsers overrides registry', function()
     ctx.orig_preload_local3 = inject_parser_lang(LOCAL_LANG3)
 
     -- Put LOCAL_LANG3 in the registry with a different (remote) URL
-    local registry = require('nvim-treesitter.registry')
+    local registry = require('treesitter-registry')
     registry.loaded[LOCAL_LANG3] = {
       source = {
         type = 'self_contained',
@@ -1266,7 +1260,7 @@ describe('local_parsers overrides registry', function()
   end)
 
   after_each(function()
-    local registry = require('nvim-treesitter.registry')
+    local registry = require('treesitter-registry')
     if registry.loaded then
       registry.loaded[LOCAL_LANG3] = nil
     end

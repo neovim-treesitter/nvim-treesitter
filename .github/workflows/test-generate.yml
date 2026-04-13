@@ -3,8 +3,6 @@ name: Generate and Test
 on:
   pull_request:
     types: [unlabeled, labeled, opened, synchronize, reopened]
-    branches:
-      - "main"
   workflow_dispatch:
 
 permissions:

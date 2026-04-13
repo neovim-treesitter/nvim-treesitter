@@ -190,11 +190,18 @@ function M.refresh_all(registry, langs, cache, on_done, max_concurrency)
         -- repo (same URL, same semver flag, same branch).  Avoid making two
         -- identical API calls — resolve once and use the result for both.
         local same_repo = source.type == 'self_contained'
-          or (source.parser_url or source.url) == (source.queries_url or source.url or source.parser_url)
+          or (source.parser_url or source.url)
+            == (source.queries_url or source.url or source.parser_url)
 
         M.latest_parser(lang, source, function(ver, err)
           if not ver and err then
-            io.stderr:write(string.format('[nvim-treesitter/version] %s: parser version lookup failed: %s\n', lang, err))
+            io.stderr:write(
+              string.format(
+                '[nvim-treesitter/version] %s: parser version lookup failed: %s\n',
+                lang,
+                err
+              )
+            )
           end
           parser_ver = ver
           if same_repo then
@@ -207,7 +214,13 @@ function M.refresh_all(registry, langs, cache, on_done, max_concurrency)
         if not same_repo then
           M.latest_queries(lang, source, function(ver, err)
             if not ver and err then
-              io.stderr:write(string.format('[nvim-treesitter/version] %s: queries version lookup failed: %s\n', lang, err))
+              io.stderr:write(
+                string.format(
+                  '[nvim-treesitter/version] %s: queries version lookup failed: %s\n',
+                  lang,
+                  err
+                )
+              )
             end
             queries_ver = ver
             inner_finish()
