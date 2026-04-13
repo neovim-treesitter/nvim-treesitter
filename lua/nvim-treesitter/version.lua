@@ -150,7 +150,9 @@ function M.refresh_all(registry, langs, cache, on_done, max_concurrency)
   local function finish()
     pending = pending - 1
     if pending == 0 then
-      on_done(cache)
+      vim.schedule(function()
+        on_done(cache)
+      end)
     end
   end
 
