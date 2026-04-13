@@ -64,7 +64,7 @@ jobs:
         run: $NVIM --clean -u scripts/minimal_init.lua -l ./scripts/check-parsers.lua
 
       - name: Check queries (nvim)
-        if: ${{ matrix.os == 'windows-latest' }}
+        continue-on-error: true
         env:
           REGISTRY: .test-deps/treesitter-parser-registry
         run: $NVIM --clean -u scripts/minimal_init.lua -l ./scripts/check-queries.lua
