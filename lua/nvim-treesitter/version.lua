@@ -186,15 +186,27 @@ function M.refresh_all(registry, langs, cache, on_done, max_concurrency)
       end
 
       sem.acquire(function()
+        -- For self_contained parsers the parser and queries live in the same
+        -- repo (same URL, same semver flag, same branch).  Avoid making two
+        -- identical API calls — resolve once and use the result for both.
+        local same_repo = source.type == 'self_contained'
+          or (source.parser_url or source.url) == (source.queries_url or source.url or source.parser_url)
+
         M.latest_parser(lang, source, function(ver, _err)
           parser_ver = ver
+          if same_repo then
+            queries_ver = ver
+            inner_finish()
+          end
           inner_finish()
         end)
 
-        M.latest_queries(lang, source, function(ver, _err)
-          queries_ver = ver
-          inner_finish()
-        end)
+        if not same_repo then
+          M.latest_queries(lang, source, function(ver, _err)
+            queries_ver = ver
+            inner_finish()
+          end)
+        end
       end)
     end
   end
