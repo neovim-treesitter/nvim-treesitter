@@ -5,11 +5,6 @@
 --
 -- Setup is identical to install_spec.lua.
 
-do
-  local repo_root = vim.fn.fnamemodify(debug.getinfo(1, 'S').source:sub(2), ':p:h:h:h')
-  vim.opt.rtp:prepend(repo_root .. '/.test-deps/plenary.nvim')
-end
-
 package.loaded['treesitter-registry.http'] = {
   get = function(_url, _opts, callback)
     vim.schedule(function()
@@ -29,7 +24,7 @@ package.loaded['treesitter-registry.http'] = {
   end,
 }
 
-package.loaded['nvim-treesitter.registry'] = nil
+package.loaded['treesitter-registry'] = nil
 
 local assert = require('luassert')
 local eq = assert.are.same
@@ -161,7 +156,7 @@ local function setup(ctx)
     end,
   }
 
-  local registry = require('nvim-treesitter.registry')
+  local registry = require('treesitter-registry')
   ctx.orig_registry_loaded = registry.loaded
   ctx.orig_registry_load = registry.load
   if not registry.loaded then
@@ -192,7 +187,7 @@ end
 local function teardown(ctx)
   vim.system = ctx.orig_system
 
-  local registry = require('nvim-treesitter.registry')
+  local registry = require('treesitter-registry')
   if registry.loaded then
     registry.loaded[LANG] = nil
   end
@@ -235,7 +230,7 @@ describe('local_parsers type=local', function()
     mkdir_p(vim.fs.joinpath(local_src_dir, 'queries'))
     write_file(vim.fs.joinpath(local_src_dir, 'queries', 'highlights.scm'), '; fake highlights')
     mkdir_p(local_src_dir)
-    local registry = require('nvim-treesitter.registry')
+    local registry = require('treesitter-registry')
     registry.loaded[LOCAL_LANG] = {
       source = { type = 'local', path = local_src_dir, queries_path = 'queries' },
       filetypes = { LOCAL_LANG },
@@ -260,7 +255,7 @@ describe('local_parsers type=local', function()
     config.setup({ local_parsers = {} })
     local cache_mod = require('nvim-treesitter.cache')
     cache_mod.set_installed(LOCAL_LANG, nil)
-    local registry = require('nvim-treesitter.registry')
+    local registry = require('treesitter-registry')
     if registry.loaded then
       registry.loaded[LOCAL_LANG] = nil
     end
@@ -324,7 +319,7 @@ describe('local_parsers type=self_contained', function()
 
   before_each(function()
     setup(ctx)
-    local registry = require('nvim-treesitter.registry')
+    local registry = require('treesitter-registry')
     registry.loaded[LOCAL_LANG2] = {
       source = {
         type = 'self_contained',
@@ -353,7 +348,7 @@ describe('local_parsers type=self_contained', function()
     config.setup({ local_parsers = {} })
     local cache_mod = require('nvim-treesitter.cache')
     cache_mod.set_installed(LOCAL_LANG2, nil)
-    local registry = require('nvim-treesitter.registry')
+    local registry = require('treesitter-registry')
     if registry.loaded then
       registry.loaded[LOCAL_LANG2] = nil
     end
@@ -433,7 +428,7 @@ describe('local_parsers overrides registry', function()
     setup(ctx)
     local_src_dir3 = tmp_dir()
     mkdir_p(local_src_dir3)
-    local registry = require('nvim-treesitter.registry')
+    local registry = require('treesitter-registry')
     registry.loaded[LOCAL_LANG3] = {
       source = {
         type = 'self_contained',
@@ -456,7 +451,7 @@ describe('local_parsers overrides registry', function()
   end)
 
   after_each(function()
-    local registry = require('nvim-treesitter.registry')
+    local registry = require('treesitter-registry')
     if registry.loaded then
       registry.loaded[LOCAL_LANG3] = nil
     end

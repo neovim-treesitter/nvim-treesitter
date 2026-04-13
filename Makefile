@@ -86,8 +86,8 @@ $(HLASSERT):
 	rm -rf $(HLASSERT_TARBALL)
 
 PLENTEST := $(CURDIR)/$(DEPDIR)/plentest.nvim
-PLENARY := $(CURDIR)/$(DEPDIR)/plenary.nvim
 REGISTRY := $(CURDIR)/$(DEPDIR)/treesitter-parser-registry
+REGISTRY_REPO := https://github.com/neovim-treesitter/treesitter-parser-registry
 
 .PHONY: plentest
 plentest: $(PLENTEST)
@@ -95,17 +95,27 @@ plentest: $(PLENTEST)
 $(PLENTEST):
 	git clone --filter=blob:none https://github.com/neovim-treesitter/plentest.nvim $(PLENTEST)
 
-.PHONY: plenary
-plenary: $(PLENARY)
-
-$(PLENARY):
-	git clone --filter=blob:none https://github.com/nvim-lua/plenary.nvim $(PLENARY)
-
 .PHONY: registry
 registry: $(REGISTRY)
 
+# Clone registry, trying a matching branch first, falling back to main.
+# REGISTRY_BRANCH can be set explicitly (e.g. from CI); otherwise we detect
+# the current git branch.  Either way, we probe the remote and fall back to
+# main when the branch doesn't exist.
+REGISTRY_BRANCH ?=
 $(REGISTRY):
-	git clone --filter=blob:none https://github.com/neovim-treesitter/treesitter-parser-registry $(REGISTRY)
+	@branch="$(REGISTRY_BRANCH)"; \
+	if [ -z "$$branch" ]; then \
+	  branch=$$(git rev-parse --abbrev-ref HEAD 2>/dev/null); \
+	fi; \
+	if [ "$$branch" != "main" ] && [ -n "$$branch" ] && \
+	   git ls-remote --exit-code --heads $(REGISTRY_REPO) "refs/heads/$$branch" >/dev/null 2>&1; then \
+	  echo "registry: using matching branch '$$branch'"; \
+	  git clone --filter=blob:none --branch "$$branch" $(REGISTRY_REPO) $(REGISTRY); \
+	else \
+	  echo "registry: using branch 'main'"; \
+	  git clone --filter=blob:none $(REGISTRY_REPO) $(REGISTRY); \
+	fi
 
 # Isolated parser install directory — blown away by `make clean`.
 # Both install-parsers.lua and minimal_init.lua read this env var so that
@@ -114,8 +124,8 @@ export TS_INSTALL_DIR ?= $(CURDIR)/$(DEPDIR)/parsers
 
 # Install all parsers into the isolated test directory.
 .PHONY: install-parsers
-install-parsers: $(NVIM) $(PLENARY) $(REGISTRY)
-	PLENARY=$(PLENARY) REGISTRY=$(REGISTRY) $(NVIM_BIN) --headless --clean -u scripts/minimal_init.lua \
+install-parsers: $(NVIM) $(REGISTRY)
+	REGISTRY=$(REGISTRY) $(NVIM_BIN) --headless --clean -u scripts/minimal_init.lua \
 		-l scripts/install-parsers.lua -- --max-jobs=8
 
 # actual test targets
@@ -147,8 +157,8 @@ checkquery: $(TSQUERYLS)
 	$(TSQUERYLS)/ts_query_ls check runtime/queries
 
 .PHONY: tests
-tests: $(NVIM) $(HLASSERT) $(PLENTEST) $(PLENARY) $(REGISTRY)
-	HLASSERT=$(HLASSERT)/highlight-assertions PLENTEST=$(PLENTEST) PLENARY=$(PLENARY) REGISTRY=$(REGISTRY) \
+tests: $(NVIM) $(HLASSERT) $(PLENTEST) $(REGISTRY)
+	HLASSERT=$(HLASSERT)/highlight-assertions PLENTEST=$(PLENTEST) REGISTRY=$(REGISTRY) \
 		TS_INSTALL_DIR=$(TS_INSTALL_DIR) \
 		$(NVIM_BIN) --headless --clean -u scripts/minimal_init.lua \
 		-c "lua require('plentest').test_directory('tests/$(TESTS)', { minimal_init = './scripts/minimal_init.lua' })"

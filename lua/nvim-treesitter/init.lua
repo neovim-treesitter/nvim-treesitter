@@ -36,7 +36,7 @@ end
 --- require("nvim-treesitter").get_parser_configs().
 --- Returns the registry's loaded table when available, otherwise {}.
 function M.get_parser_configs()
-  local registry = require('nvim-treesitter.registry')
+  local registry = require('treesitter-registry')
   if registry.loaded and next(registry.loaded) then
     return registry.loaded
   end

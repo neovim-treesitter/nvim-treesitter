@@ -21,14 +21,24 @@ local M = {}
 --- Choose between semver tag lookup and HEAD SHA lookup based on the
 --- `*_semver` flag in the registry source entry.
 ---
+--- When use_semver is true but the repo has no semver tags yet (e.g. a new
+--- query repo that hasn't been released), falls back to latest_head so the
+--- install can proceed using the HEAD SHA.
+---
 ---@param url         string
----@param use_semver  boolean   true  → latest_tag; false → latest_head
+---@param use_semver  boolean   true  → latest_tag (with HEAD fallback); false → latest_head
 ---@param branch      string?   branch hint for HEAD lookup
 ---@param callback    fun(version: string?, err: string?)
 local function resolve_version(url, use_semver, branch, callback)
   local adapter = hosts.for_url(url)
   if use_semver then
-    adapter.latest_tag(url, callback)
+    adapter.latest_tag(url, function(tag, err)
+      if tag then
+        return callback(tag, nil)
+      end
+      -- No semver tags found (e.g. repo not yet released) — fall back to HEAD.
+      adapter.latest_head(url, branch, callback)
+    end)
   else
     adapter.latest_head(url, branch, callback)
   end
@@ -140,7 +150,9 @@ function M.refresh_all(registry, langs, cache, on_done, max_concurrency)
   local function finish()
     pending = pending - 1
     if pending == 0 then
-      on_done(cache)
+      vim.schedule(function()
+        on_done(cache)
+      end)
     end
   end
 
@@ -190,11 +202,18 @@ function M.refresh_all(registry, langs, cache, on_done, max_concurrency)
         -- repo (same URL, same semver flag, same branch).  Avoid making two
         -- identical API calls — resolve once and use the result for both.
         local same_repo = source.type == 'self_contained'
-          or (source.parser_url or source.url) == (source.queries_url or source.url or source.parser_url)
+          or (source.parser_url or source.url)
+            == (source.queries_url or source.url or source.parser_url)
 
         M.latest_parser(lang, source, function(ver, err)
           if not ver and err then
-            io.stderr:write(string.format('[nvim-treesitter/version] %s: parser version lookup failed: %s\n', lang, err))
+            io.stderr:write(
+              string.format(
+                '[nvim-treesitter/version] %s: parser version lookup failed: %s\n',
+                lang,
+                err
+              )
+            )
           end
           parser_ver = ver
           if same_repo then
@@ -207,7 +226,13 @@ function M.refresh_all(registry, langs, cache, on_done, max_concurrency)
         if not same_repo then
           M.latest_queries(lang, source, function(ver, err)
             if not ver and err then
-              io.stderr:write(string.format('[nvim-treesitter/version] %s: queries version lookup failed: %s\n', lang, err))
+              io.stderr:write(
+                string.format(
+                  '[nvim-treesitter/version] %s: queries version lookup failed: %s\n',
+                  lang,
+                  err
+                )
+              )
             end
             queries_ver = ver
             inner_finish()

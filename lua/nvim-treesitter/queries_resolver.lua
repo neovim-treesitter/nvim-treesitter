@@ -10,17 +10,19 @@
 --
 -- Algorithm for M.resolve(lang, install_dir, callback, _visited):
 --   1. Read all .scm files for `lang` under install_dir/queries/<lang>/
---   2. For each file that has a `; inherits:` directive, collect parent langs.
+--   2. For each file that has a `; inherits:` directive, record that file
+--      name → parent lang mapping.
 --   3. For each parent lang, recursively call M.resolve() (cycle-safe via
---      _visited set), then call M._merge(child_lang, parent_lang, install_dir).
+--      _visited set), then call M._merge(child_lang, parent_lang, install_dir,
+--      inheriting_files) — only merging into files that actually declared
+--      `; inherits:` for that parent.
 --   4. When all parents for all files are done, call callback().
 --
--- M._merge(child_lang, parent_lang, install_dir):
---   For each .scm file in the parent's queries directory:
---     - If the child has a corresponding file: prepend parent content (minus
---       the `; inherits:` line) before the child content.
---     - If the child does NOT have the file: create it from the parent content
---       (again stripping the `; inherits:` line).
+-- M._merge(child_lang, parent_lang, install_dir, inheriting_files):
+--   Only processes .scm files from the parent that have a corresponding child
+--   file which declared `; inherits: <parent_lang>`:
+--     - Prepend parent content (minus the `; inherits:` line) before the child
+--       content (minus its own `; inherits:` line).
 --   This is idempotent only if called once per install; the install pipeline
 --   must call M.resolve after a fresh copy is in place, not after a previous
 --   merge.
@@ -132,19 +134,15 @@ end
 
 --- Merge parent query files into child query files.
 ---
---- For every .scm file in `install_dir/queries/<parent_lang>/`:
----   * Strip the leading `; inherits:` line (if present) from the parent content.
----   * If the child has a corresponding file:
----       prepend the cleaned parent content, then append the child content
----       (minus its own leading `; inherits:` line, which has already been
----       processed by the time _merge is called).
----   * If the child does NOT have the file:
----       create it with just the parent content.
+--- Only merges into child files listed in `inheriting_files` — i.e. files that
+--- actually declared `; inherits: <parent_lang>`.  Other child files that did
+--- not request inheritance from this parent are left untouched.
 ---
----@param child_lang  string
----@param parent_lang string
----@param install_dir string  base queries directory  (install_dir/queries/<lang>/)
-function M._merge(child_lang, parent_lang, install_dir)
+---@param child_lang       string
+---@param parent_lang      string
+---@param install_dir      string          base queries directory  (install_dir/queries/<lang>/)
+---@param inheriting_files table<string, boolean>  set of basenames (e.g. "highlights.scm") to merge
+function M._merge(child_lang, parent_lang, install_dir, inheriting_files)
   local parent_dir = vim.fs.joinpath(install_dir, parent_lang)
   local child_dir = vim.fs.joinpath(install_dir, child_lang)
 
@@ -160,6 +158,12 @@ function M._merge(child_lang, parent_lang, install_dir)
 
   for _, pfile in ipairs(parent_files) do
     local fname = vim.fs.basename(pfile)
+
+    -- Only merge into files that declared `; inherits: <parent_lang>`
+    if not inheriting_files[fname] then
+      goto continue
+    end
+
     local cfile = vim.fs.joinpath(child_dir, fname)
 
     local p_content = read_file(pfile)
@@ -235,20 +239,32 @@ function M.resolve(lang, install_dir, callback, _visited)
   local lang_dir = vim.fs.joinpath(install_dir, lang)
   local files = scm_files(lang_dir)
 
-  -- Collect the full set of unique parent languages declared across all files
-  local parents_seen = {} ---@type table<string, boolean>
-  local parents = {} ---@type { lang: string, optional: boolean }[]
+  -- Track which files declared inheritance from which parents.
+  -- parents_info[parent_lang] = {
+  --   optional = bool,
+  --   files = { ["highlights.scm"] = true, ... }
+  -- }
+  local parents_info = {} ---@type table<string, { optional: boolean, files: table<string, boolean> }>
+  local parents_order = {} ---@type string[]  insertion-ordered unique parent langs
 
   for _, scm_path in ipairs(files) do
+    local fname = vim.fs.basename(scm_path)
     for _, directive in ipairs(M.parse_inherits(scm_path)) do
-      if not parents_seen[directive.lang] then
-        parents_seen[directive.lang] = true
-        parents[#parents + 1] = directive
+      local info = parents_info[directive.lang]
+      if not info then
+        info = { optional = directive.optional, files = {} }
+        parents_info[directive.lang] = info
+        parents_order[#parents_order + 1] = directive.lang
       end
+      -- If any file makes the parent non-optional, keep it non-optional
+      if not directive.optional then
+        info.optional = false
+      end
+      info.files[fname] = true
     end
   end
 
-  if #parents == 0 then
+  if #parents_order == 0 then
     return vim.schedule(callback)
   end
 
@@ -258,19 +274,20 @@ function M.resolve(lang, install_dir, callback, _visited)
 
   local function next_parent()
     idx = idx + 1
-    if idx > #parents then
+    if idx > #parents_order then
       return callback()
     end
 
-    local p = parents[idx]
-    if not p then
+    local parent_lang = parents_order[idx]
+    local info = parents_info[parent_lang]
+    if not info then
       return callback()
     end
 
     -- Check whether the parent's query dir actually exists
-    local parent_dir = vim.fs.joinpath(install_dir, p.lang)
+    local parent_dir = vim.fs.joinpath(install_dir, parent_lang)
     if not vim.uv.fs_stat(parent_dir) then
-      if p.optional then
+      if info.optional then
         -- Skip silently
         return next_parent()
       else
@@ -278,8 +295,8 @@ function M.resolve(lang, install_dir, callback, _visited)
           string.format(
             'nvim-treesitter/queries_resolver: %s inherits from %s, but %s queries are not installed',
             lang,
-            p.lang,
-            p.lang
+            parent_lang,
+            parent_lang
           ),
           vim.log.levels.WARN
         )
@@ -287,9 +304,10 @@ function M.resolve(lang, install_dir, callback, _visited)
       end
     end
 
-    -- Recursively resolve the parent first
-    M.resolve(p.lang, install_dir, function()
-      M._merge(lang, p.lang, install_dir)
+    -- Recursively resolve the parent first, then merge only into files
+    -- that declared `; inherits: <parent_lang>`.
+    M.resolve(parent_lang, install_dir, function()
+      M._merge(lang, parent_lang, install_dir, info.files)
       next_parent()
     end, _visited)
   end

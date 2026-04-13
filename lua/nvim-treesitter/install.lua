@@ -12,7 +12,7 @@
 ---   max_jobs integer — parallelism cap (default 100)
 ---
 --- Dependencies (new modular modules, assumed present):
----   nvim-treesitter.registry        M.load(cb), M.get(lang), M.loaded
+---   treesitter-registry              M.load(cb), M.get(lang), M.loaded
 ---   nvim-treesitter.version         M.latest_parser, M.latest_queries, M.refresh_all
 ---   nvim-treesitter.cache           M.load, M.save, M.is_stale, M.stale_langs,
 ---                                   M.get_installed, M.set_installed
@@ -871,7 +871,7 @@ M.install = a.async(function(languages, opts)
   end
 
   -- 2. Load registry — needed to resolve language names and get source info
-  local registry = require('nvim-treesitter.registry')
+  local registry = require('treesitter-registry')
   a.await(1, function(cb)
     registry.load(cb)
   end)
@@ -1017,7 +1017,7 @@ M.update = a.async(function(languages, opts)
   end
 
   -- 1. Load registry from the locally installed registry plugin
-  local registry = require('nvim-treesitter.registry')
+  local registry = require('treesitter-registry')
   if not registry.loaded then
     log.info('Loading parser registry...')
     a.schedule()
@@ -1203,7 +1203,7 @@ end)
 ---Return a per-language status table.
 ---@return table<string, { installed: boolean, parser_version: string?, queries_version: string?, latest_parser: string?, latest_queries: string?, needs_update: boolean }>
 function M.status()
-  local registry = require('nvim-treesitter.registry')
+  local registry = require('treesitter-registry')
   local cache_mod = require('nvim-treesitter.cache')
 
   -- Best-effort synchronous snapshot; full async refresh happens in install/update.
