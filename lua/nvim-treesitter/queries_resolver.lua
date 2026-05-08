@@ -280,7 +280,7 @@ function M.resolve(lang, install_dir, callback, _visited)
 
     local parent_lang = parents_order[idx]
     local info = parents_info[parent_lang]
-    if not info then
+    if not info or not parent_lang then
       return callback()
     end
 

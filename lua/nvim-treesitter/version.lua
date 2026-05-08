@@ -32,7 +32,7 @@ local M = {}
 local function resolve_version(url, use_semver, branch, callback)
   local adapter = hosts.for_url(url)
   if use_semver then
-    adapter.latest_tag(url, function(tag, err)
+    adapter.latest_tag(url, function(tag, _err)
       if tag then
         return callback(tag, nil)
       end
