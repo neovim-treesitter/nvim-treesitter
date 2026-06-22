@@ -17,7 +17,7 @@ jobs:
     name: Lint Lua files
     runs-on: ubuntu-slim
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Format
         run: |
@@ -31,7 +31,7 @@ jobs:
     name: Lint query files
     runs-on: ubuntu-slim
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Format
         run: |
