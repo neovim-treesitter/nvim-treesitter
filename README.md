@@ -51,7 +51,7 @@ See the [neovim-treesitter org][org] for the full ecosystem.
 
 ```lua
 {
-  'nvim-treesitter/nvim-treesitter',
+  'neovim-treesitter/nvim-treesitter',
   dependencies = { 'neovim-treesitter/treesitter-parser-registry' },
   lazy = false,
   build = ':TSUpdate',
