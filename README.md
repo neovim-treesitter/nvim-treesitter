@@ -3,12 +3,47 @@
 </h1>
 
 > [!WARNING]
-> **This fork is deprecated.** [nvim-treesitter/nvim-treesitter][upstream] is
-> actively maintained again and now carries the `main`-branch rewrite that this
-> fork was based on — including the zsh grammar. Please switch your plugin spec
-> to upstream and remove the `treesitter-parser-registry` dependency. Thanks to
-> everyone who used or contributed to the per-language query repos and the
-> parser registry experiment.
+> **This project is deprecated.** Please use
+> [nvim-treesitter/nvim-treesitter][upstream] — see
+> [Migrating to upstream](#migrating-to-upstream) below.
+
+## Status
+
+This fork was born from a gap, and is closing because the gap closed.
+
+**The gap.** Upstream nvim-treesitter went dormant and its repository was
+archived after years in which nearly all maintenance had serialized on a very
+small team. This fork was an attempt to keep the project alive by removing
+that single point of failure: instead of one monolith owning every language's
+queries, responsibility would be distributed to the people closest to each
+language — grammar owners and heavy users — backed by per-language query repos
+(`nvim-treesitter-queries-<lang>`), a shared [parser registry][registry] for
+versioning, and CI validating every query change against its parser.
+
+**Finding 1: the gap closed.** Upstream was resurrected by its original
+maintainers and is actively developed again, carrying the same `main`-branch
+rewrite this fork was based on. When the canonical project is healthy, a
+parallel universe of ~330 per-language repos is more coordination than value.
+
+**Finding 2: distributed maintenance only partly landed.** Some query repos
+found maintainers; most didn't. This turned out to be structural, not a
+recruiting problem: a grammar is written once, but its queries are perpetual,
+editor-specific upkeep, so grammar owners rarely want the second job even when
+the infrastructure is handed to them. Upstream independently reached the same
+conclusion a few months later, dropping its own query-maintainer roster with
+the note that "most maintainers stopped being responsive very quickly." Two
+systems, one lesson: distributing the *structure* of responsibility doesn't
+distribute the *labor*.
+
+**What lives on:** the [zsh grammar][zsh] maintained by this fork's author was
+upstreamed and is now upstream's parser for zsh; the query-validation CI setup
+is worth borrowing; and the registry experiment remains preserved below and
+across the org for anyone who wants to pick it up.
+
+Thank you to everyone who starred, filed issues, adopted a query repo, or
+contributed along the way. Please point your configs at [upstream][upstream] —
+the [migration notes](#migrating-to-upstream) cover the one rough edge (old
+copied query directories need resetting).
 
 ### Migrating to upstream
 
@@ -28,17 +63,6 @@ already-installed parsers without relinking queries):
 :TSInstall! <your languages>
 ```
 
-`nvim-treesitter` installs tree-sitter parsers and the Neovim query files that
-go with them (highlights, injections, folds, indents, locals). Parsers and
-queries are discovered from a [community registry][registry] rather than
-pinned inside this repo, so each language's queries are maintained by the
-people who use that language.
-
-This is a fork of [nvim-treesitter/nvim-treesitter][upstream] that replaces
-the monolithic query collection with a distributed model: per-language query
-repos, a shared parser registry, and CI infrastructure for validating queries.
-See the [neovim-treesitter org][org] for the full ecosystem.
-
 > [!CAUTION]
 > This is a full, incompatible rewrite. Treat it as a new plugin and set it up
 > from scratch following the instructions below. If you need the previous
@@ -48,6 +72,7 @@ See the [neovim-treesitter org][org] for the full ecosystem.
 [upstream]: https://github.com/nvim-treesitter/nvim-treesitter
 [org]: https://github.com/neovim-treesitter
 [master]: https://github.com/nvim-treesitter/nvim-treesitter/blob/master/README.md
+[zsh]: https://github.com/georgeharker/tree-sitter-zsh
 
 ---
 
