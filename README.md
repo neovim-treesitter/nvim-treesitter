@@ -2,6 +2,32 @@
   <img src="https://github.com/nvim-treesitter/nvim-treesitter/assets/2361214/0513b223-c902-4f12-92ee-8ac4d8d6f41f" alt="nvim-treesitter">
 </h1>
 
+> [!WARNING]
+> **This fork is deprecated.** [nvim-treesitter/nvim-treesitter][upstream] is
+> actively maintained again and now carries the `main`-branch rewrite that this
+> fork was based on — including the zsh grammar. Please switch your plugin spec
+> to upstream and remove the `treesitter-parser-registry` dependency. Thanks to
+> everyone who used or contributed to the per-language query repos and the
+> parser registry experiment.
+
+### Migrating to upstream
+
+Upstream installs queries as **symlinks** into its own runtime; this fork
+copied them into `~/.local/share/nvim/site/queries/<lang>/` as real
+directories, which upstream's installer cannot replace — you will see
+`EEXIST: file already exists` errors from `:TSUpdate` until you reset them:
+
+```sh
+rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}"/nvim/site/queries
+```
+
+Then reinstall with the bang (plain `:TSInstall` / `:TSUpdate` skips
+already-installed parsers without relinking queries):
+
+```vim
+:TSInstall! <your languages>
+```
+
 `nvim-treesitter` installs tree-sitter parsers and the Neovim query files that
 go with them (highlights, injections, folds, indents, locals). Parsers and
 queries are discovered from a [community registry][registry] rather than

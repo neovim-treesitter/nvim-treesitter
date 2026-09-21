@@ -116,6 +116,14 @@ local function query_status(lang, query_group)
 end
 
 function M.check()
+  health.warn(
+    'This fork (neovim-treesitter/nvim-treesitter) is deprecated.\n'
+      .. 'Please switch to the actively maintained upstream:\n'
+      .. 'https://github.com/nvim-treesitter/nvim-treesitter\n'
+      .. '\nIf :TSUpdate reports EEXIST after switching, remove\n'
+      .. '~/.local/share/nvim/site/queries and force-reinstall with :TSInstall! <languages>.'
+  )
+
   --- @type {[1]: string, [2]: string, [3]: string}[]
   local error_collection = {}
   -- Installation dependency checks

@@ -20,6 +20,24 @@ if vim.g.loaded_nvim_treesitter then
 end
 vim.g.loaded_nvim_treesitter = true
 
+-- ── deprecation notice ──────────────────────────────────────────────────────────────────
+-- nvim-treesitter/nvim-treesitter is actively maintained again and is the canonical
+-- home of the main-branch rewrite this fork was based on. Show once, after UI ready.
+vim.schedule(function()
+  vim.notify_once(
+    '[neovim-treesitter] This fork is deprecated — please switch to upstream.\n'
+      .. 'nvim-treesitter/nvim-treesitter is actively maintained again and now carries the\n'
+      .. "main-branch rewrite this fork was based on. In your plugin spec, use:\n"
+      .. "  { 'nvim-treesitter/nvim-treesitter', branch = 'main', build = ':TSUpdate' }\n"
+      .. "and remove the 'neovim-treesitter/treesitter-parser-registry' dependency.\n"
+      .. 'If :TSUpdate reports EEXIST after switching, reset the old copied query dirs:\n'
+      .. '  rm -rf ~/.local/share/nvim/site/queries\n'
+      .. 'then reinstall:  :TSInstall! <your language list>\n'
+      .. 'The zsh grammar (georgeharker/tree-sitter-zsh) is now shipped by upstream.',
+    vim.log.levels.WARN
+  )
+end)
+
 -- ── dependency check ──────────────────────────────────────────────────────────
 local ok, _ = pcall(require, 'treesitter-registry.http')
 if not ok then
