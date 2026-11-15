@@ -26,6 +26,8 @@ vim.g.loaded_nvim_treesitter = true
 vim.schedule(function()
   vim.notify_once(
     '[neovim-treesitter] This fork is deprecated — please switch to upstream.\n'
+      .. 'Its query repositories are removed on 2027-01-04; after that it can no longer\n'
+      .. 'install or update parsers.\n'
       .. 'nvim-treesitter/nvim-treesitter is actively maintained again and now carries the\n'
       .. "main-branch rewrite this fork was based on. In your plugin spec, use:\n"
       .. "  { 'nvim-treesitter/nvim-treesitter', branch = 'main', build = ':TSUpdate' }\n"

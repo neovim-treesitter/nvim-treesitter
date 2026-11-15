@@ -818,6 +818,46 @@ end
 
 local M = {}
 
+-- ── retirement ────────────────────────────────────────────────────────────────
+-- This fork is deprecated. Its query repositories and parser registry are
+-- removed on RETIRE_DATE; after that, installs and updates stop instead of
+-- failing on missing repositories. Installed parsers keep working.
+
+local RETIRE_DATE = '2027-01-04'
+
+local MIGRATE = 'Switch to upstream nvim-treesitter. In your plugin spec, use:\n'
+  .. "  { 'nvim-treesitter/nvim-treesitter', branch = 'main', build = ':TSUpdate' }\n"
+  .. "and remove the 'neovim-treesitter/treesitter-parser-registry' dependency.\n"
+  .. 'Then reset the old copied query dirs and reinstall:\n'
+  .. '  rm -rf ~/.local/share/nvim/site/queries\n'
+  .. '  :TSInstall! <your language list>'
+
+---@return boolean retired true when installs and updates are disabled
+local function retired()
+  if os.date('!%Y-%m-%d') >= RETIRE_DATE then
+    vim.schedule(function()
+      vim.notify(
+        '[neovim-treesitter] This fork is retired: its query repositories were removed on '
+          .. RETIRE_DATE
+          .. ', so it can no longer install or update parsers.\n'
+          .. MIGRATE,
+        vim.log.levels.ERROR
+      )
+    end)
+    return true
+  end
+  vim.schedule(function()
+    vim.notify_once(
+      '[neovim-treesitter] This fork stops installing and updating parsers on '
+        .. RETIRE_DATE
+        .. ', when its query repositories are removed.\n'
+        .. MIGRATE,
+      vim.log.levels.WARN
+    )
+  end)
+  return false
+end
+
 ---@param ...string
 ---@return string
 function M.get_package_path(...)
@@ -843,6 +883,9 @@ end
 ---@param opts?     InstallOptions
 ---@return boolean  true when all installations succeeded
 M.install = a.async(function(languages, opts)
+  if retired() then
+    return false
+  end
   opts = opts or {}
 
   -- 1. Without force, skip languages already present on disk — no registry or
@@ -1010,6 +1053,9 @@ end)
 ---@param opts?      InstallOptions
 ---@return boolean   true when all updates succeeded
 M.update = a.async(function(languages, opts)
+  if retired() then
+    return false
+  end
   opts = opts or {}
 
   if not languages or (type(languages) == 'table' and #languages == 0) then
