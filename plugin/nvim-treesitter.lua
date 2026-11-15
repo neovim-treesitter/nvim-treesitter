@@ -29,7 +29,7 @@ vim.schedule(function()
       .. 'Its query repositories are removed on 2027-01-04; after that it can no longer\n'
       .. 'install or update parsers.\n'
       .. 'nvim-treesitter/nvim-treesitter is actively maintained again and now carries the\n'
-      .. "main-branch rewrite this fork was based on. In your plugin spec, use:\n"
+      .. 'main-branch rewrite this fork was based on. In your plugin spec, use:\n'
       .. "  { 'nvim-treesitter/nvim-treesitter', branch = 'main', build = ':TSUpdate' }\n"
       .. "and remove the 'neovim-treesitter/treesitter-parser-registry' dependency.\n"
       .. 'If :TSUpdate reports EEXIST after switching, reset the old copied query dirs:\n'
